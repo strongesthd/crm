@@ -6,6 +6,7 @@ import { MessagingModule } from 'src/modules/messaging/messaging.module';
 import { OnboardingInviteSuggestionsModule } from 'src/modules/onboarding-invite-suggestions/onboarding-invite-suggestions.module';
 import { WorkflowModule } from 'src/modules/workflow/workflow.module';
 import { WorkspaceMemberModule } from 'src/modules/workspace-member/workspace-member.module';
+import { ImportManagerModule } from 'src/modules/import-manager/import-manager.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { WorkspaceMemberModule } from 'src/modules/workspace-member/workspace-me
     OnboardingInviteSuggestionsModule,
     WorkflowModule,
     WorkspaceMemberModule,
+    ImportManagerModule,
   ],
   providers: [],
   exports: [],
