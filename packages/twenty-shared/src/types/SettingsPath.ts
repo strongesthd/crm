@@ -68,6 +68,7 @@ export enum SettingsPath {
   NewWebhook = 'mcp-apis/webhooks/new',
   WebhookDetail = 'mcp-apis/webhooks/:webhookId',
   Integrations = 'integrations',
+  DataImport = 'data-import',
   Security = 'general#security',
   Logs = 'general#logs',
   NewSSOIdentityProvider = 'security/sso/new',

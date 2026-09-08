@@ -635,6 +635,12 @@ const SettingsAdminChats = lazy(() =>
   })),
 );
 
+const SettingsDataImport = lazy(() =>
+  import('~/pages/settings/data-import/SettingsDataImport').then((module) => ({
+    default: module.SettingsDataImport,
+  })),
+);
+
 const SettingsCommunity = lazy(() =>
   import('~/pages/settings/community/SettingsCommunity').then((module) => ({
     default: module.SettingsCommunity,
@@ -725,6 +731,10 @@ export const SettingsRoutes = ({ isAdminPageEnabled }: SettingsRoutesProps) => (
           />
         }
       >
+        <Route
+          path={SettingsPath.DataImport}
+          element={<SettingsDataImport />}
+        />
         <Route path={SettingsPath.General} element={<SettingsGeneral />} />
         <Route
           path={SettingsPath.WorkspaceCommunications}
