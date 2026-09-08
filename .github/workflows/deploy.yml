@@ -110,7 +110,37 @@ jobs:
             docker compose --env-file "$APP_DIR/.env" \
               -f docker-compose.yml \
               -f docker-compose.prod.yml \
-              up -d --build --force-recreate --remove-orphans
+              build server
+
+            # Run database initialization before starting the application. This avoids
+            # leaving a partially initialized database if the server is interrupted.
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up -d db redis
+            for attempt in $(seq 1 30); do
+              if docker compose --env-file "$APP_DIR/.env" \
+                -f docker-compose.yml \
+                -f docker-compose.prod.yml \
+                exec -T db pg_isready >/dev/null 2>&1; then
+                break
+              fi
+              if [ "$attempt" = 30 ]; then
+                echo 'Database did not become ready'
+                exit 1
+              fi
+              sleep 2
+            done
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              run --rm --no-deps --entrypoint sh server \
+              -lc 'cd /app/packages/twenty-server && yarn database:init:prod'
+
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up -d --force-recreate --remove-orphans server worker
 
             for attempt in $(seq 1 40); do
               if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3002/healthz >/dev/null; then
