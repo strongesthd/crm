@@ -45,8 +45,13 @@ jobs:
             --exclude 'node_modules/' \
             --exclude '**/node_modules/' \
             --exclude '**/.env' \
-            --exclude '**/dist/' \
-            --exclude '**/build/' \
+            --exclude 'packages/twenty-front/build/' \
+            --exclude 'packages/twenty-server/dist/' \
+            --exclude 'packages/twenty-shared/dist/' \
+            --exclude 'packages/twenty-emails/dist/' \
+            --exclude 'packages/twenty-client-sdk/dist/' \
+            --exclude 'packages/twenty-sdk/dist/' \
+            --exclude 'packages/twenty-ui/storybook-static/' \
             --exclude 'deploy_dist/' \
             --exclude '*.log' \
             ./ deploy_dist/
@@ -102,7 +107,10 @@ jobs:
             rm -rf "$BACKUP_DIR"
 
             cd "$APP_DIR/packages/twenty-docker"
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --force-recreate --remove-orphans
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml \
+              up -d --build --force-recreate --remove-orphans
 
             for attempt in $(seq 1 40); do
               if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3002/healthz >/dev/null; then
@@ -114,6 +122,10 @@ jobs:
               sleep 5
             done
 
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail 150 server worker || true
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml ps
+            docker compose --env-file "$APP_DIR/.env" \
+              -f docker-compose.yml \
+              -f docker-compose.prod.yml logs --tail 150 server worker || true
             exit 1
