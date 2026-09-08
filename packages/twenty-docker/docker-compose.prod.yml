@@ -5,7 +5,7 @@ services:
       dockerfile: packages/twenty-docker/twenty/Dockerfile
       target: twenty
     image: strongesthd/crm:local
-    ports:
+    ports: !override
       - "127.0.0.1:3002:3000"
 
   worker:
