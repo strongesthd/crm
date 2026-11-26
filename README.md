@@ -21,14 +21,18 @@ Trong `.env`, đặt `ADMIN_USER`, `ADMIN_PASS` (ít nhất 12 ký tự) và
 
 Đăng nhập bằng tài khoản quản trị, mở **Người dùng** trên thanh bên để tạo
 tài khoản **Kế toán** hoặc **Thủ quỹ**. Kế toán được thêm/sửa khách hàng và
-chỉnh sửa phiếu đang chờ duyệt; thủ quỹ chỉ tạo phiếu. Cả hai vai trò đều xem
+chỉnh sửa phiếu đang chờ duyệt; thủ quỹ được tạo phiếu. Cả hai vai trò đều xem
 được dữ liệu. Quyền duyệt được cấp riêng trên từng tài khoản tại trang Người
-dùng; quản trị viên luôn có quyền duyệt.
+dùng; quản trị viên luôn có quyền duyệt. Tại danh sách người dùng, admin có thể
+cập nhật họ tên, tên đăng nhập và đặt lại mật khẩu; để trống mật khẩu mới nếu
+không muốn đổi.
 
 Mọi phiếu mới đều ở trạng thái **Chờ duyệt**. Người có quyền duyệt có thể duyệt
 hoặc từ chối phiếu; từ chối phải có lý do. Chỉ phiếu đã duyệt mới được tính vào
-tổng thu chi, công nợ và báo cáo. Khi nâng cấp cơ sở dữ liệu hiện có, các tài
-khoản cũ được giữ lại và giao dịch cũ được đánh dấu đã duyệt.
+tổng thu chi, công nợ và báo cáo. Người tạo được xem và sửa phiếu của mình; kế
+toán cũng có thể sửa phiếu đang chờ, còn admin có thể sửa mọi phiếu. Mỗi lần
+sửa, phiếu quay lại trạng thái chờ duyệt. Khi nâng cấp cơ sở dữ liệu hiện có,
+các tài khoản cũ được giữ lại và giao dịch cũ được đánh dấu đã duyệt.
 
 ## Deploy VPS
 

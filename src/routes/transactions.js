@@ -21,9 +21,13 @@ const createTransactionsRouter = (db) => {
     const { conditions, parameters } = buildConditions(filters);
     const transactions = db
       .prepare(
-        `SELECT t.*, c.name AS customer_name
+        `SELECT t.*, c.name AS customer_name,
+          creator.full_name AS creator_name,
+          reviewer.full_name AS reviewer_name
          FROM transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
+         LEFT JOIN users creator ON creator.id = t.created_by
+         LEFT JOIN users reviewer ON reviewer.id = t.reviewed_by
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
          ORDER BY t.transaction_date DESC, t.id DESC`,
       )
@@ -42,7 +46,14 @@ const createTransactionsRouter = (db) => {
           paymentStatus: transaction.payment_status,
           approvalStatus: transaction.approval_status,
           customerId: transaction.customer_id,
+          customerName: transaction.customer_name || 'Không liên kết',
+          creatorName: transaction.creator_name || 'Không rõ',
+          reviewerName: transaction.reviewer_name || 'Chưa duyệt',
+          rejectionReason: transaction.rejection_reason,
+          formattedAmount: formatCurrency(transaction.amount),
+          formattedDate: formatDate(transaction.transaction_date),
         }),
+        canEdit: canEditTransaction(req.currentUser, transaction),
       }));
 
     const customers = db
@@ -64,7 +75,7 @@ const createTransactionsRouter = (db) => {
       approvalStatuses: APPROVAL_STATUSES,
       canApproveTransactions:
         req.currentUser.isAdmin || req.currentUser.canApprove,
-      canEditTransactions: ['admin', 'accountant'].includes(
+      canMarkTransactionsPaid: ['admin', 'accountant'].includes(
         req.currentUser.role,
       ),
       canDeleteTransactions: req.currentUser.isAdmin,
@@ -144,21 +155,20 @@ const createTransactionsRouter = (db) => {
     res.redirect('/transactions');
   });
 
-  router.post('/:id', requireRoles('admin', 'accountant'), (req, res) => {
+  router.post('/:id', (req, res) => {
     const transactionId = parseRecordId(req.params.id);
     const existingTransaction = db
-      .prepare('SELECT approval_status FROM transactions WHERE id = ?')
+      .prepare(
+        'SELECT approval_status, created_by FROM transactions WHERE id = ?',
+      )
       .get(transactionId);
 
     if (!existingTransaction) {
       throw createHttpError(404, 'Không tìm thấy giao dịch cần chỉnh sửa.');
     }
 
-    if (
-      req.currentUser.role !== 'admin' &&
-      existingTransaction.approval_status !== 'PENDING'
-    ) {
-      throw createHttpError(403, 'Chỉ được chỉnh sửa phiếu đang chờ duyệt.');
+    if (!canEditTransaction(req.currentUser, existingTransaction)) {
+      throw createHttpError(403, 'Bạn không có quyền chỉnh sửa phiếu này.');
     }
 
     const transaction = readTransaction(req.body, db);
@@ -456,6 +466,11 @@ const getApprovalLabel = (status) => {
 
   return 'Đã duyệt';
 };
+
+const canEditTransaction = (user, transaction) =>
+  user.isAdmin ||
+  transaction.created_by === user.id ||
+  (user.role === 'accountant' && transaction.approval_status === 'PENDING');
 
 const getMissingOrReviewedError = (db, transactionId) => {
   const transaction = db

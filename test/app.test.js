@@ -250,10 +250,33 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.equal(createAccountantResponse.status, 302);
   assert.equal(createCashierResponse.status, 302);
 
+  const accountantId = db
+    .prepare("SELECT id FROM users WHERE username = 'accountant01'")
+    .get().id;
+  const updatedAccountantPassword = 'accountant-password-changed';
+  const updateAccountantResponse = await postForm(
+    baseUrl,
+    `/users/${accountantId}`,
+    adminCookie,
+    adminCsrfToken,
+    {
+      fullName: 'Kế toán đã cập nhật',
+      username: 'accountant01',
+      password: updatedAccountantPassword,
+    },
+  );
+
+  assert.equal(updateAccountantResponse.status, 302);
+  assert.equal(
+    db.prepare('SELECT full_name FROM users WHERE id = ?')
+      .get(accountantId).full_name,
+    'Kế toán đã cập nhật',
+  );
+
   const accountantCookie = await login(
     baseUrl,
     'accountant01',
-    accountantPassword,
+    updatedAccountantPassword,
   );
   const accountantCsrfToken = await getCsrfToken(
     baseUrl,
@@ -315,7 +338,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.equal(pendingTransaction.approval_status, 'PENDING');
   assert.equal(
     pendingTransaction.created_by,
-    db.prepare("SELECT id FROM users WHERE username = 'accountant01'").get().id,
+    accountantId,
   );
 
   const accountantApprovalResponse = await postForm(
@@ -332,6 +355,22 @@ test('enforces staff permissions and the transaction approval workflow', async (
     cashierCookie,
     '/transactions',
   );
+  const cashierTransactionsResponse = await fetch(
+    `${baseUrl}/transactions`,
+    { headers: { cookie: cashierCookie } },
+  );
+  const cashierTransactionsHtml = await cashierTransactionsResponse.text();
+
+  assert.equal(cashierTransactionsResponse.status, 200);
+  assert.match(
+    cashierTransactionsHtml,
+    new RegExp(`aria-label="Xem phiếu #${pendingTransaction.id}"`),
+  );
+  assert.doesNotMatch(
+    cashierTransactionsHtml,
+    new RegExp(`aria-label="Sửa phiếu #${pendingTransaction.id}"`),
+  );
+
   const createCustomerResponse = await postForm(
     baseUrl,
     '/customers',
@@ -388,6 +427,19 @@ test('enforces staff permissions and the transaction approval workflow', async (
   const selfApproveTransaction = db
     .prepare('SELECT id FROM transactions WHERE description = ?')
     .get(selfApproveFields.description);
+  const cashierListingWithOwnTransaction = await fetch(
+    `${baseUrl}/transactions`,
+    { headers: { cookie: cashierCookie } },
+  );
+  const cashierListingWithOwnTransactionHtml =
+    await cashierListingWithOwnTransaction.text();
+  const editOwnPendingResponse = await postForm(
+    baseUrl,
+    `/transactions/${selfApproveTransaction.id}`,
+    cashierCookie,
+    cashierCsrfToken,
+    { ...selfApproveFields, amount: '6789' },
+  );
   const selfApproveResponse = await postForm(
     baseUrl,
     `/transactions/${selfApproveTransaction.id}/approve`,
@@ -396,6 +448,15 @@ test('enforces staff permissions and the transaction approval workflow', async (
   );
 
   assert.equal(createSelfApproveResponse.status, 302);
+  assert.match(
+    cashierListingWithOwnTransactionHtml,
+    new RegExp(`aria-label="Xem phiếu #${selfApproveTransaction.id}"`),
+  );
+  assert.match(
+    cashierListingWithOwnTransactionHtml,
+    new RegExp(`aria-label="Sửa phiếu #${selfApproveTransaction.id}"`),
+  );
+  assert.equal(editOwnPendingResponse.status, 302);
   assert.equal(selfApproveResponse.status, 302);
   assert.deepEqual(
     db
@@ -409,6 +470,28 @@ test('enforces staff permissions and the transaction approval workflow', async (
         .prepare("SELECT id FROM users WHERE username = 'cashier01'")
         .get().id,
     },
+  );
+
+  const editOwnApprovedResponse = await postForm(
+    baseUrl,
+    `/transactions/${selfApproveTransaction.id}`,
+    cashierCookie,
+    cashierCsrfToken,
+    { ...selfApproveFields, amount: '7890' },
+  );
+  const reapproveOwnEditedResponse = await postForm(
+    baseUrl,
+    `/transactions/${selfApproveTransaction.id}/approve`,
+    cashierCookie,
+    cashierCsrfToken,
+  );
+
+  assert.equal(editOwnApprovedResponse.status, 302);
+  assert.equal(reapproveOwnEditedResponse.status, 302);
+  assert.equal(
+    db.prepare('SELECT amount FROM transactions WHERE id = ?')
+      .get(selfApproveTransaction.id).amount,
+    7890,
   );
 
   const rejectedFields = {
@@ -467,7 +550,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
 
   assert.equal(dashboardResponse.status, 200);
   assert.ok(incomeMetric);
-  assert.equal(incomeMetric[1], '15.005.678 ₫');
+  assert.equal(incomeMetric[1], '15.007.890 ₫');
 
   const rejectedCsvResponse = await fetch(
     `${baseUrl}/transactions/export.csv?approvalStatus=REJECTED`,

@@ -112,12 +112,14 @@
     const descriptionInput = document.getElementById(
       'transaction-description',
     );
+    const submitLabel = document.getElementById('transaction-submit-label');
 
     document.querySelectorAll('[data-transaction-create]').forEach((button) => {
       button.addEventListener('click', () => {
         transactionForm.action = '/transactions';
         transactionForm.reset();
         modalTitle.textContent = 'Thêm giao dịch';
+        submitLabel.textContent = 'Tạo phiếu';
         dateInput.value = new Date().toISOString().slice(0, 10);
       });
     });
@@ -134,7 +136,68 @@
         paymentStatusInput.value = transaction.paymentStatus;
         customerInput.value = transaction.customerId ?? '';
         descriptionInput.value = transaction.description;
-        modalTitle.textContent = 'Chỉnh sửa giao dịch';
+        modalTitle.textContent = `Sửa phiếu #${transaction.id}`;
+        submitLabel.textContent = 'Lưu thay đổi';
+      });
+    });
+  }
+
+  const transactionDetailsModal = document.getElementById(
+    'transaction-details-modal',
+  );
+
+  if (transactionDetailsModal) {
+    document.querySelectorAll('[data-transaction-view]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const transaction = JSON.parse(button.dataset.transactionView);
+        const approvalLabels = {
+          APPROVED: 'Đã duyệt',
+          PENDING: 'Chờ duyệt',
+          REJECTED: 'Từ chối',
+        };
+        const typeLabel = transaction.type === 'THU' ? 'Thu' : 'Chi';
+        const amountPrefix = transaction.type === 'THU' ? '+' : '−';
+
+        document.getElementById('transaction-details-title').textContent =
+          `Chi tiết phiếu #${transaction.id}`;
+        document.getElementById('transaction-details-type').textContent =
+          typeLabel;
+        document.getElementById('transaction-details-amount').textContent =
+          `${amountPrefix}${transaction.formattedAmount}`;
+        document.getElementById('transaction-details-date').textContent =
+          transaction.formattedDate;
+        document.getElementById('transaction-details-category').textContent =
+          transaction.category;
+        document.getElementById('transaction-details-customer').textContent =
+          transaction.customerName;
+        document.getElementById('transaction-details-payment').textContent =
+          transaction.paymentStatus;
+        document.getElementById('transaction-details-approval').textContent =
+          approvalLabels[transaction.approvalStatus];
+        document.getElementById('transaction-details-creator').textContent =
+          transaction.creatorName;
+        document.getElementById('transaction-details-reviewer').textContent =
+          transaction.reviewerName;
+        document.getElementById('transaction-details-description').textContent =
+          transaction.description || 'Không có diễn giải';
+
+        const rejectionContainer = document.getElementById(
+          'transaction-details-rejection-container',
+        );
+        rejectionContainer.classList.toggle(
+          'hidden',
+          !transaction.rejectionReason,
+        );
+        document.getElementById('transaction-details-rejection').textContent =
+          transaction.rejectionReason;
+
+        if (window.Modal) {
+          const modal = window.Modal.getInstance(transactionDetailsModal)
+            ?? new window.Modal(transactionDetailsModal);
+          modal.show();
+        }
+
+        refreshIcons();
       });
     });
   }

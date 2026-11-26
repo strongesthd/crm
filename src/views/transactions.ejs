@@ -76,6 +76,7 @@
               </td>
               <td>
                 <div class="flex justify-end gap-1">
+                  <button type="button" data-transaction-view="<%= transaction.detailsJson %>" class="icon-button" aria-label="Xem phiếu #<%= transaction.id %>" title="Xem chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
                   <% if (canApproveTransactions && transaction.approval_status === 'PENDING') { %>
                     <form method="post" action="/transactions/<%= transaction.id %>/approve">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -87,10 +88,10 @@
                       <button type="submit" class="inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-50" title="Từ chối phiếu"><i data-lucide="x" class="h-4 w-4"></i><span>Từ chối</span></button>
                     </form>
                   <% } %>
-                  <% if (canEditTransactions && (transaction.approval_status === 'PENDING' || currentUser.isAdmin)) { %>
+                  <% if (transaction.canEdit) { %>
                     <button type="button" data-transaction-edit="<%= transaction.detailsJson %>" data-modal-target="transaction-modal" data-modal-toggle="transaction-modal" class="icon-button" aria-label="Sửa phiếu #<%= transaction.id %>" title="Chỉnh sửa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
                   <% } %>
-                  <% if (canEditTransactions && transaction.approval_status === 'APPROVED' && transaction.payment_status === 'Công nợ') { %>
+                  <% if (canMarkTransactionsPaid && transaction.approval_status === 'APPROVED' && transaction.payment_status === 'Công nợ') { %>
                     <form method="post" action="/transactions/<%= transaction.id %>/paid">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <button type="submit" class="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" title="Đánh dấu đã thu/chi"><i data-lucide="check" class="h-4 w-4"></i><span>Đã thu/chi</span></button>
@@ -151,9 +152,33 @@
         </div>
         <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button type="button" data-modal-hide="transaction-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
-          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Tạo phiếu</button>
+          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"><span id="transaction-submit-label">Tạo phiếu</span></button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<div id="transaction-details-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-2xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="transaction-details-title" class="text-lg font-semibold text-slate-900">Chi tiết phiếu</h3><p class="mt-1 text-sm text-slate-500">Thông tin phiếu thu chi và lịch sử duyệt.</p></div>
+        <button type="button" data-modal-hide="transaction-details-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <dl class="grid gap-x-6 gap-y-4 p-6 sm:grid-cols-2">
+        <div><dt class="text-xs font-medium text-slate-500">Loại phiếu</dt><dd id="transaction-details-type" class="mt-1 text-sm font-semibold text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Số tiền</dt><dd id="transaction-details-amount" class="mt-1 text-sm font-semibold text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Ngày giao dịch</dt><dd id="transaction-details-date" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Danh mục</dt><dd id="transaction-details-category" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Khách hàng</dt><dd id="transaction-details-customer" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Thanh toán</dt><dd id="transaction-details-payment" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Trạng thái duyệt</dt><dd id="transaction-details-approval" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Người tạo</dt><dd id="transaction-details-creator" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div><dt class="text-xs font-medium text-slate-500">Người duyệt</dt><dd id="transaction-details-reviewer" class="mt-1 text-sm text-slate-800"></dd></div>
+        <div id="transaction-details-rejection-container" class="hidden sm:col-span-2"><dt class="text-xs font-medium text-slate-500">Lý do từ chối</dt><dd id="transaction-details-rejection" class="mt-1 whitespace-pre-wrap text-sm text-rose-700"></dd></div>
+        <div class="sm:col-span-2"><dt class="text-xs font-medium text-slate-500">Diễn giải</dt><dd id="transaction-details-description" class="mt-1 whitespace-pre-wrap text-sm text-slate-800"></dd></div>
+      </dl>
     </div>
   </div>
 </div>

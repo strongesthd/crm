@@ -78,6 +78,59 @@ const createUsersRouter = (db) => {
     res.redirect('/users');
   });
 
+  router.post('/:id', (req, res) => {
+    const userId = parseRecordId(req.params.id);
+    const existingUser = db
+      .prepare('SELECT id FROM users WHERE id = ?')
+      .get(userId);
+
+    if (!existingUser) {
+      throw createHttpError(404, 'Không tìm thấy tài khoản.');
+    }
+
+    const user = readUserProfile(req.body);
+    const usernameInUse = db
+      .prepare(
+        `SELECT 1 FROM users
+         WHERE username = ? COLLATE NOCASE AND id != ?`,
+      )
+      .get(user.username, userId);
+
+    if (usernameInUse) {
+      throw createHttpError(409, 'Tên đăng nhập này đã được sử dụng.');
+    }
+
+    try {
+      if (user.password) {
+        db.prepare(
+          `UPDATE users
+           SET full_name = ?, username = ?, password_hash = ?
+           WHERE id = ?`,
+        ).run(
+          user.fullName,
+          user.username,
+          bcrypt.hashSync(user.password, 12),
+          userId,
+        );
+      } else {
+        db.prepare(
+          `UPDATE users
+           SET full_name = ?, username = ?
+           WHERE id = ?`,
+        ).run(user.fullName, user.username, userId);
+      }
+    } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw createHttpError(409, 'Tên đăng nhập này đã được sử dụng.');
+      }
+
+      throw error;
+    }
+
+    setFlash(req, 'success', 'Đã cập nhật thông tin tài khoản.');
+    res.redirect('/users');
+  });
+
   router.post('/:id/approval-permission', (req, res) => {
     const userId = parseRecordId(req.params.id);
     const user = db
@@ -172,6 +225,30 @@ const readNewUser = (body) => {
     role,
     username,
   };
+};
+
+const readUserProfile = (body) => {
+  const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
+  const username =
+    typeof body.username === 'string' ? body.username.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+
+  if (!fullName || fullName.length > 120) {
+    throw createHttpError(400, 'Họ tên là bắt buộc và tối đa 120 ký tự.');
+  }
+
+  if (!/^[a-zA-Z0-9._-]{3,80}$/.test(username)) {
+    throw createHttpError(
+      400,
+      'Tên đăng nhập phải có 3-80 ký tự, chỉ gồm chữ, số, dấu chấm, gạch ngang hoặc gạch dưới.',
+    );
+  }
+
+  if (password && (password.length < 12 || password.length > 128)) {
+    throw createHttpError(400, 'Mật khẩu mới phải có từ 12 đến 128 ký tự.');
+  }
+
+  return { fullName, password, username };
 };
 
 const getRoleLabel = (role) => {
