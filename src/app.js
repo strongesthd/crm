@@ -1,3 +1,5 @@
+const { createHash } = require('node:crypto');
+const fs = require('node:fs');
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -15,6 +17,11 @@ const { ensureCsrfToken } = require('./middleware/csrf');
 const { flashMiddleware } = require('./middleware/flash');
 const { formatCurrency, formatDate, getInitials } = require('./utils/format');
 
+const appScriptVersion = createHash('sha256')
+  .update(fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js')))
+  .digest('hex')
+  .slice(0, 12);
+
 const createApp = (db) => {
   const app = express();
 
@@ -25,6 +32,7 @@ const createApp = (db) => {
   app.disable('x-powered-by');
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
+  app.locals.appScriptVersion = appScriptVersion;
 
   app.use(
     helmet({
