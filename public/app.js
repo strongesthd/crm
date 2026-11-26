@@ -196,6 +196,56 @@
     });
   }
 
+  const userActionModal = document.getElementById('user-action-modal');
+
+  if (userActionModal) {
+    const userProfileForm = document.getElementById('user-profile-form');
+    const userRoleForm = document.getElementById('user-role-form');
+    const userApprovalForm = document.getElementById('user-approval-form');
+    const userStatusForm = document.getElementById('user-status-form');
+
+    document.querySelectorAll('[data-user-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const user = JSON.parse(button.dataset.userOpen);
+
+        document.getElementById('user-action-title').textContent =
+          user.fullName;
+        document.getElementById('user-action-subtitle').textContent =
+          `${user.username} · ${user.roleLabel}`;
+
+        userProfileForm.action = `/users/${user.id}`;
+        userProfileForm.elements.fullName.value = user.fullName;
+        userProfileForm.elements.username.value = user.username;
+        userProfileForm.elements.password.value = '';
+        userProfileForm.elements.passwordConfirmation.value = '';
+
+        userRoleForm.action = `/users/${user.id}/role`;
+        userRoleForm.elements.role.value = user.role;
+        userRoleForm.classList.toggle('hidden', user.role === 'admin');
+
+        userApprovalForm.action = `/users/${user.id}/approval-permission`;
+        userApprovalForm.elements.canApprove.checked = user.canApprove;
+        userApprovalForm.classList.toggle('hidden', user.role === 'admin');
+
+        userStatusForm.action = `/users/${user.id}/status`;
+        userStatusForm.classList.toggle('hidden', user.isSelf);
+        document.getElementById('user-status-description').textContent =
+          user.isActive
+            ? 'Khóa tài khoản sẽ chặn đăng nhập và kết thúc các phiên hoạt động.'
+            : 'Kích hoạt tài khoản để nhân viên có thể đăng nhập lại.';
+        const statusButton = document.getElementById('user-status-button');
+        statusButton.textContent = user.isActive
+          ? 'Khóa tài khoản'
+          : 'Kích hoạt tài khoản';
+        statusButton.className = user.isActive
+          ? 'rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50'
+          : 'rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50';
+
+        refreshIcons();
+      });
+    });
+  }
+
   const detailModalElement = document.getElementById('customer-details-modal');
 
   if (detailModalElement) {

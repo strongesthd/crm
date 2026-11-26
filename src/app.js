@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const config = require('./config');
 const SQLiteSessionStore = require('./db/sqlite-session-store');
+const createAccountRouter = require('./routes/account');
 const createAuthRouter = require('./routes/auth');
 const createCustomersRouter = require('./routes/customers');
 const createDashboardRouter = require('./routes/dashboard');
@@ -99,6 +100,7 @@ const createApp = (db) => {
   app.use(requireAuthentication(db));
   app.use(ensureCsrfToken);
   app.use('/', createDashboardRouter(db));
+  app.use('/account', createAccountRouter(db));
   app.use('/customers', createCustomersRouter(db));
   app.use('/transactions', createTransactionsRouter(db));
   app.use('/users', createUsersRouter(db));

@@ -261,6 +261,38 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.equal(createAccountantResponse.status, 302);
   assert.equal(createCashierResponse.status, 302);
 
+  const usersPageResponse = await fetch(`${baseUrl}/users`, {
+    headers: { cookie: adminCookie },
+  });
+  const usersHtml = await usersPageResponse.text();
+  const cashierId = db
+    .prepare("SELECT id FROM users WHERE username = 'cashier01'")
+    .get().id;
+  const promoteCashierResponse = await postForm(
+    baseUrl,
+    `/users/${cashierId}/role`,
+    adminCookie,
+    adminCsrfToken,
+    { role: 'accountant' },
+  );
+  const restoreCashierRoleResponse = await postForm(
+    baseUrl,
+    `/users/${cashierId}/role`,
+    adminCookie,
+    adminCsrfToken,
+    { role: 'cashier' },
+  );
+
+  assert.equal(usersPageResponse.status, 200);
+  assert.match(usersHtml, /data-user-open="/);
+  assert.match(usersHtml, /id="user-action-modal"/);
+  assert.doesNotMatch(
+    usersHtml,
+    /name="fullName" value="Nhân viên kế toán"/,
+  );
+  assert.equal(promoteCashierResponse.status, 302);
+  assert.equal(restoreCashierRoleResponse.status, 302);
+
   const accountantId = db
     .prepare("SELECT id FROM users WHERE username = 'accountant01'")
     .get().id;
@@ -274,6 +306,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
       fullName: 'Kế toán đã cập nhật',
       username: 'accountant01',
       password: updatedAccountantPassword,
+      passwordConfirmation: updatedAccountantPassword,
     },
   );
 
@@ -577,6 +610,53 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.match(rejectedCsv, /"Từ chối"/);
   assert.match(rejectedCsv, /"Phiếu bị từ chối"/);
   assert.doesNotMatch(rejectedCsv, /"Phiếu tự duyệt"/);
+
+  const accountPageResponse = await fetch(`${baseUrl}/account`, {
+    headers: { cookie: accountantCookie },
+  });
+  const accountHtml = await accountPageResponse.text();
+  const accountCsrfToken = extractCsrfToken(accountHtml);
+  const selfUpdatedPassword = 'accountant-self-password-123';
+  const accountUpdateFields = {
+    fullName: 'Kế toán tự cập nhật',
+    username: 'accountant.self',
+    password: selfUpdatedPassword,
+    passwordConfirmation: selfUpdatedPassword,
+  };
+  const incorrectCurrentPasswordResponse = await postForm(
+    baseUrl,
+    '/account',
+    accountantCookie,
+    accountCsrfToken,
+    {
+      ...accountUpdateFields,
+      currentPassword: 'not-the-current-password',
+    },
+  );
+  const accountUpdateResponse = await postForm(
+    baseUrl,
+    '/account',
+    accountantCookie,
+    accountCsrfToken,
+    {
+      ...accountUpdateFields,
+      currentPassword: updatedAccountantPassword,
+    },
+  );
+
+  assert.equal(accountPageResponse.status, 200);
+  assert.match(accountHtml, /Tài khoản của tôi/);
+  assert.equal(incorrectCurrentPasswordResponse.status, 403);
+  assert.equal(accountUpdateResponse.status, 302);
+  assert.deepEqual(
+    db.prepare('SELECT full_name, username FROM users WHERE id = ?')
+      .get(accountantId),
+    {
+      full_name: 'Kế toán tự cập nhật',
+      username: 'accountant.self',
+    },
+  );
+  await login(baseUrl, 'accountant.self', selfUpdatedPassword);
 });
 
 test('migrates existing users and transactions without losing records', () => {

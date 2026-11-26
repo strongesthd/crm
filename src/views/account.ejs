@@ -1,0 +1,39 @@
+<%- include('partials/app-shell-start') %>
+<div class="mb-7">
+  <h1 class="text-2xl font-bold tracking-tight text-slate-900">Tài khoản của tôi</h1>
+  <p class="mt-1 text-sm text-slate-500">Cập nhật tên, tên đăng nhập hoặc mật khẩu của bạn.</p>
+</div>
+
+<section class="panel-card max-w-2xl">
+  <form method="post" action="/account" class="space-y-5">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div>
+      <label for="account-full-name" class="form-label">Họ tên</label>
+      <input id="account-full-name" name="fullName" value="<%= currentUser.fullName %>" required maxlength="120" class="form-input" autocomplete="name">
+    </div>
+    <div>
+      <label for="account-username" class="form-label">Tên đăng nhập</label>
+      <input id="account-username" name="username" value="<%= currentUser.username %>" required minlength="3" maxlength="80" pattern="[A-Za-z0-9._-]+" class="form-input" autocomplete="username">
+    </div>
+    <div class="border-t border-slate-100 pt-5">
+      <h2 class="text-sm font-semibold text-slate-800">Đổi mật khẩu</h2>
+      <p class="mt-1 text-xs text-slate-500">Để trống nếu không muốn đổi. Mật khẩu mới cần ít nhất 12 ký tự.</p>
+    </div>
+    <div>
+      <label for="account-current-password" class="form-label">Mật khẩu hiện tại</label>
+      <input id="account-current-password" name="currentPassword" type="password" class="form-input" autocomplete="current-password">
+    </div>
+    <div>
+      <label for="account-new-password" class="form-label">Mật khẩu mới</label>
+      <input id="account-new-password" name="password" type="password" minlength="12" maxlength="128" class="form-input" autocomplete="new-password">
+    </div>
+    <div>
+      <label for="account-password-confirmation" class="form-label">Xác nhận mật khẩu mới</label>
+      <input id="account-password-confirmation" name="passwordConfirmation" type="password" minlength="12" maxlength="128" class="form-input" autocomplete="new-password">
+    </div>
+    <div class="flex justify-end border-t border-slate-100 pt-5">
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu thay đổi</button>
+    </div>
+  </form>
+</section>
+<%- include('partials/app-shell-end') %>

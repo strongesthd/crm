@@ -4,6 +4,7 @@ const express = require('express');
 const { USER_ROLES } = require('../db');
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
+const { readUserProfile } = require('../utils/user-profile');
 
 const USER_ROLE_LABELS = {
   admin: 'Quản trị viên',
@@ -20,7 +21,7 @@ const createUsersRouter = (db) => {
 
   router.use(requireRoles('admin'));
 
-  router.get('/', (_req, res) => {
+  router.get('/', (req, res) => {
     const users = db
       .prepare(
         `SELECT id, username, full_name AS fullName, role,
@@ -29,12 +30,28 @@ const createUsersRouter = (db) => {
          ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, full_name COLLATE NOCASE`,
       )
       .all()
-      .map((user) => ({
-        ...user,
-        canApprove: Boolean(user.canApprove),
-        isActive: Boolean(user.isActive),
-        roleLabel: getRoleLabel(user.role),
-      }));
+      .map((user) => {
+        const formattedUser = {
+          ...user,
+          canApprove: Boolean(user.canApprove),
+          isActive: Boolean(user.isActive),
+          roleLabel: getRoleLabel(user.role),
+        };
+
+        return {
+          ...formattedUser,
+          detailsJson: JSON.stringify({
+            id: user.id,
+            fullName: user.fullName,
+            username: user.username,
+            role: user.role,
+            roleLabel: formattedUser.roleLabel,
+            canApprove: formattedUser.canApprove,
+            isActive: formattedUser.isActive,
+            isSelf: user.id === req.currentUser.id,
+          }),
+        };
+      });
 
     res.render('users', {
       title: 'Quản lý người dùng',
@@ -150,6 +167,27 @@ const createUsersRouter = (db) => {
     res.redirect('/users');
   });
 
+  router.post('/:id/role', (req, res) => {
+    const userId = parseRecordId(req.params.id);
+    const user = db
+      .prepare('SELECT id, role FROM users WHERE id = ?')
+      .get(userId);
+    const role = typeof req.body.role === 'string' ? req.body.role : '';
+
+    if (!user || user.role === 'admin') {
+      throw createHttpError(404, 'Không tìm thấy tài khoản nhân viên.');
+    }
+
+    if (!USER_ROLES.includes(role)) {
+      throw createHttpError(400, 'Chức danh nhân viên không hợp lệ.');
+    }
+
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
+
+    setFlash(req, 'success', 'Đã cập nhật chức danh nhân viên.');
+    res.redirect('/users');
+  });
+
   router.post('/:id/status', (req, res) => {
     const userId = parseRecordId(req.params.id);
     const user = db
@@ -225,30 +263,6 @@ const readNewUser = (body) => {
     role,
     username,
   };
-};
-
-const readUserProfile = (body) => {
-  const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
-  const username =
-    typeof body.username === 'string' ? body.username.trim() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-
-  if (!fullName || fullName.length > 120) {
-    throw createHttpError(400, 'Họ tên là bắt buộc và tối đa 120 ký tự.');
-  }
-
-  if (!/^[a-zA-Z0-9._-]{3,80}$/.test(username)) {
-    throw createHttpError(
-      400,
-      'Tên đăng nhập phải có 3-80 ký tự, chỉ gồm chữ, số, dấu chấm, gạch ngang hoặc gạch dưới.',
-    );
-  }
-
-  if (password && (password.length < 12 || password.length > 128)) {
-    throw createHttpError(400, 'Mật khẩu mới phải có từ 12 đến 128 ký tự.');
-  }
-
-  return { fullName, password, username };
 };
 
 const getRoleLabel = (role) => {

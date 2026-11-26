@@ -23,9 +23,10 @@ Trong `.env`, đặt `ADMIN_USER`, `ADMIN_PASS` (ít nhất 12 ký tự) và
 tài khoản **Kế toán** hoặc **Thủ quỹ**. Kế toán được thêm/sửa khách hàng và
 chỉnh sửa phiếu đang chờ duyệt; thủ quỹ được tạo phiếu. Cả hai vai trò đều xem
 được dữ liệu. Quyền duyệt được cấp riêng trên từng tài khoản tại trang Người
-dùng; quản trị viên luôn có quyền duyệt. Tại danh sách người dùng, admin có thể
-cập nhật họ tên, tên đăng nhập và đặt lại mật khẩu; để trống mật khẩu mới nếu
-không muốn đổi.
+dùng; quản trị viên luôn có quyền duyệt. Admin chọn một tài khoản trong danh
+sách để sửa thông tin, chức danh, quyền duyệt hoặc khóa/kích hoạt tài khoản.
+Mỗi người dùng cũng có thể tự đổi họ tên, tên đăng nhập và mật khẩu ở mục
+**Tài khoản của tôi**.
 
 Mọi phiếu mới đều ở trạng thái **Chờ duyệt**. Người có quyền duyệt có thể duyệt
 hoặc từ chối phiếu; từ chối phải có lý do. Chỉ phiếu đã duyệt mới được tính vào
