@@ -107,6 +107,11 @@ jobs:
               done
             fi
 
+            if ! grep -q '^ADMIN_USER=.' "$APP_DIR/.env"; then
+              printf '\nADMIN_USER=admin\n' >> "$APP_DIR/.env"
+              echo 'Using admin as the CRM login name.'
+            fi
+
             for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
               if ! grep -q "^${variable}=." "$APP_DIR/.env"; then
                 echo "Missing $variable in $APP_DIR/.env."
