@@ -190,6 +190,7 @@ test('protects CRM routes, validates CSRF, escapes customer input, and exports f
   assert.equal(customerPageResponse.status, 200);
   assert.match(customerHtml, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.doesNotMatch(customerHtml, /<img src=x onerror=alert\(1\)>/);
+  assert.match(customerHtml, /data-modal-toggle="customer-details-modal"/);
 
   const csvResponse = await fetch(`${baseUrl}/transactions/export.csv?type=THU`, {
     headers: { cookie: authenticatedCookie },
@@ -375,6 +376,10 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.match(
     cashierTransactionsHtml,
     new RegExp(`aria-label="Xem phiếu #${pendingTransaction.id}"`),
+  );
+  assert.match(
+    cashierTransactionsHtml,
+    /data-modal-toggle="transaction-details-modal"/,
   );
   assert.doesNotMatch(
     cashierTransactionsHtml,

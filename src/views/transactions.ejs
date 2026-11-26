@@ -76,7 +76,7 @@
               </td>
               <td>
                 <div class="flex justify-end gap-1">
-                  <button type="button" data-transaction-view="<%= transaction.detailsJson %>" class="icon-button" aria-label="Xem phiếu #<%= transaction.id %>" title="Xem chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                  <button type="button" data-transaction-view="<%= transaction.detailsJson %>" data-modal-target="transaction-details-modal" data-modal-toggle="transaction-details-modal" class="icon-button" aria-label="Xem phiếu #<%= transaction.id %>" title="Xem chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
                   <% if (canApproveTransactions && transaction.approval_status === 'PENDING') { %>
                     <form method="post" action="/transactions/<%= transaction.id %>/approve">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">

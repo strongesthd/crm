@@ -191,12 +191,6 @@
         document.getElementById('transaction-details-rejection').textContent =
           transaction.rejectionReason;
 
-        if (window.Modal) {
-          const modal = window.Modal.getInstance(transactionDetailsModal)
-            ?? new window.Modal(transactionDetailsModal);
-          modal.show();
-        }
-
         refreshIcons();
       });
     });
@@ -317,12 +311,6 @@
             table.append(tableHead, tableBody);
             tableContainer.append(table);
             detailsContent.append(tableContainer);
-          }
-
-          if (window.Modal) {
-            const modal = window.Modal.getInstance(detailModalElement)
-              ?? new window.Modal(detailModalElement);
-            modal.show();
           }
 
           refreshIcons();
