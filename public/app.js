@@ -203,6 +203,20 @@
     const userRoleForm = document.getElementById('user-role-form');
     const userApprovalForm = document.getElementById('user-approval-form');
     const userStatusForm = document.getElementById('user-status-form');
+    let isPrivilegedUser = false;
+
+    const updateApprovalPermissionVisibility = () => {
+      userApprovalForm.classList.toggle(
+        'hidden',
+        isPrivilegedUser || userRoleForm.elements.role.value === 'manager',
+      );
+    };
+
+    userRoleForm.elements.role.addEventListener(
+      'change',
+      updateApprovalPermissionVisibility,
+    );
+
     const userCreateRole = document.getElementById('user-role');
     const userCreateApprovalOption = document.getElementById(
       'user-create-approval-option',
@@ -236,10 +250,11 @@
         userRoleForm.action = `/users/${user.id}/role`;
         userRoleForm.elements.role.value = user.role;
         userRoleForm.classList.toggle('hidden', user.role === 'admin');
+        isPrivilegedUser = user.isPrivileged;
 
         userApprovalForm.action = `/users/${user.id}/approval-permission`;
         userApprovalForm.elements.canApprove.checked = user.canApprove;
-        userApprovalForm.classList.toggle('hidden', user.isPrivileged);
+        updateApprovalPermissionVisibility();
 
         userStatusForm.action = `/users/${user.id}/status`;
         userStatusForm.classList.toggle('hidden', user.isSelf);

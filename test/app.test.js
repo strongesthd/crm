@@ -735,6 +735,16 @@ test('grants managers administrator-level permissions', async (context) => {
       role: 'cashier',
     },
   );
+  const cashierId = db
+    .prepare("SELECT id FROM users WHERE username = 'cashier02'")
+    .get().id;
+  const promoteCashierResponse = await postForm(
+    baseUrl,
+    `/users/${cashierId}/role`,
+    managerCookie,
+    managerCsrfToken,
+    { role: 'manager' },
+  );
   const createCustomerResponse = await postForm(
     baseUrl,
     '/customers',
@@ -769,6 +779,12 @@ test('grants managers administrator-level permissions', async (context) => {
     .get(transactionFields.description);
 
   assert.equal(createCashierResponse.status, 302);
+  assert.equal(promoteCashierResponse.status, 302);
+  assert.deepEqual(
+    db.prepare('SELECT role, can_approve FROM users WHERE id = ?')
+      .get(cashierId),
+    { role: 'manager', can_approve: 1 },
+  );
   assert.equal(createCustomerResponse.status, 302);
   assert.equal(createTransactionResponse.status, 302);
   assert.ok(transaction);
