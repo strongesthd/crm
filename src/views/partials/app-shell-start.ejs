@@ -23,9 +23,38 @@
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold text-slate-900"><%= title %></p>
         </div>
-        <div class="hidden items-center gap-2 text-sm text-slate-500 sm:flex">
-          <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700"><%= getInitials(currentUser.fullName) %></span>
-          <span><%= currentUser.fullName %></span>
+        <div class="relative">
+          <button id="profile-dropdown-button" type="button" data-dropdown-toggle="profile-dropdown" data-dropdown-placement="bottom-end" aria-haspopup="true" aria-expanded="false" class="inline-flex max-w-[220px] items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700"><%= getInitials(currentUser.fullName) %></span>
+            <span class="min-w-0">
+              <span class="block truncate text-sm font-medium text-slate-800"><%= currentUser.fullName %></span>
+              <span class="block truncate text-xs text-slate-500"><%= currentUser.role === 'admin' ? 'Quản trị viên' : currentUser.role === 'accountant' ? 'Kế toán' : 'Thủ quỹ' %></span>
+            </span>
+            <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-400"></i>
+          </button>
+          <div id="profile-dropdown" class="absolute right-0 top-full z-50 mt-2 hidden w-56 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-white shadow-lg">
+            <div class="px-4 py-3">
+              <p class="truncate text-sm font-semibold text-slate-800"><%= currentUser.fullName %></p>
+              <p class="truncate text-xs text-slate-500"><%= currentUser.username %></p>
+            </div>
+            <ul class="py-1 text-sm text-slate-700" aria-labelledby="profile-dropdown-button">
+              <li>
+                <a href="/account" class="flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50">
+                  <i data-lucide="user-round-pen" class="h-4 w-4 text-slate-500"></i>
+                  Cập nhật thông tin
+                </a>
+              </li>
+              <li>
+                <form method="post" action="/logout">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-rose-700 hover:bg-rose-50">
+                    <i data-lucide="log-out" class="h-4 w-4"></i>
+                    Đăng xuất
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </div>
         </div>
       </header>
       <main class="mx-auto max-w-[1600px] p-4 md:p-8">

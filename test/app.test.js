@@ -158,6 +158,9 @@ test('protects CRM routes, validates CSRF, escapes customer input, and exports f
 
   assert.equal(transactionsPageResponse.status, 200);
   assert.match(transactionsHtml, /Sổ thu chi/);
+  assert.match(transactionsHtml, /data-dropdown-toggle="profile-dropdown"/);
+  assert.match(transactionsHtml, /href="\/account"/);
+  assert.match(transactionsHtml, /<form method="post" action="\/logout">/);
   assert.match(
     transactionsHtml,
     /<script src="\/app\.js\?v=[a-f0-9]{12}" defer><\/script>/,
