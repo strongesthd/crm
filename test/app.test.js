@@ -287,6 +287,8 @@ test('enforces staff permissions and the transaction approval workflow', async (
   );
 
   assert.equal(usersPageResponse.status, 200);
+  assert.match(usersHtml, /data-modal-toggle="user-create-modal"/);
+  assert.match(usersHtml, /id="user-create-modal"/);
   assert.match(usersHtml, /data-user-open="/);
   assert.match(usersHtml, /id="user-action-modal"/);
   assert.doesNotMatch(
