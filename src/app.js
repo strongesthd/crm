@@ -9,6 +9,7 @@ const createAuthRouter = require('./routes/auth');
 const createCustomersRouter = require('./routes/customers');
 const createDashboardRouter = require('./routes/dashboard');
 const { createTransactionsRouter } = require('./routes/transactions');
+const createUsersRouter = require('./routes/users');
 const { requireAuthentication } = require('./middleware/auth');
 const { ensureCsrfToken } = require('./middleware/csrf');
 const { flashMiddleware } = require('./middleware/flash');
@@ -82,11 +83,12 @@ const createApp = (db) => {
   app.locals.getInitials = getInitials;
 
   app.use('/', createAuthRouter(db));
-  app.use(requireAuthentication);
+  app.use(requireAuthentication(db));
   app.use(ensureCsrfToken);
   app.use('/', createDashboardRouter(db));
   app.use('/customers', createCustomersRouter(db));
   app.use('/transactions', createTransactionsRouter(db));
+  app.use('/users', createUsersRouter(db));
 
   app.use((_req, res) => {
     res.status(404).render('error', {

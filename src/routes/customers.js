@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { CUSTOMER_STATUSES } = require('../db');
+const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate, getInitials } = require('../utils/format');
 
@@ -33,8 +34,8 @@ const createCustomersRouter = (db) => {
     const customers = db
       .prepare(
         `SELECT c.*,
-          COALESCE(SUM(CASE WHEN t.payment_status = 'Đã thanh toán' AND t.type = 'THU' THEN t.amount ELSE 0 END), 0) AS paid_income,
-          COALESCE(SUM(CASE WHEN t.payment_status = 'Công nợ' THEN t.amount ELSE 0 END), 0) AS outstanding
+          COALESCE(SUM(CASE WHEN t.approval_status = 'APPROVED' AND t.payment_status = 'Đã thanh toán' AND t.type = 'THU' THEN t.amount ELSE 0 END), 0) AS paid_income,
+          COALESCE(SUM(CASE WHEN t.approval_status = 'APPROVED' AND t.payment_status = 'Công nợ' THEN t.amount ELSE 0 END), 0) AS outstanding
          FROM customers c
          LEFT JOIN transactions t ON t.customer_id = c.id
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
@@ -68,6 +69,9 @@ const createCustomersRouter = (db) => {
       search,
       selectedStatus,
       customerStatuses: CUSTOMER_STATUSES,
+      canManageCustomers: ['admin', 'accountant'].includes(
+        req.currentUser.role,
+      ),
       statusCounts: Object.fromEntries(
         statusCounts.map(({ status, count }) => [status, count]),
       ),
@@ -100,8 +104,8 @@ const createCustomersRouter = (db) => {
     const totals = db
       .prepare(
         `SELECT
-          COALESCE(SUM(CASE WHEN type = 'THU' AND payment_status = 'Đã thanh toán' THEN amount ELSE 0 END), 0) AS paid_income,
-          COALESCE(SUM(CASE WHEN payment_status = 'Công nợ' THEN amount ELSE 0 END), 0) AS outstanding
+          COALESCE(SUM(CASE WHEN approval_status = 'APPROVED' AND type = 'THU' AND payment_status = 'Đã thanh toán' THEN amount ELSE 0 END), 0) AS paid_income,
+          COALESCE(SUM(CASE WHEN approval_status = 'APPROVED' AND payment_status = 'Công nợ' THEN amount ELSE 0 END), 0) AS outstanding
          FROM transactions
          WHERE customer_id = ?`,
       )
@@ -109,7 +113,8 @@ const createCustomersRouter = (db) => {
 
     const transactions = db
       .prepare(
-        `SELECT id, type, amount, category, description, transaction_date, payment_status
+        `SELECT id, type, amount, category, description, transaction_date,
+          payment_status, approval_status, rejection_reason
          FROM transactions
          WHERE customer_id = ?
          ORDER BY transaction_date DESC, id DESC`,
@@ -131,7 +136,7 @@ const createCustomersRouter = (db) => {
     });
   });
 
-  router.post('/', (req, res) => {
+  router.post('/', requireRoles('admin', 'accountant'), (req, res) => {
     const customer = readCustomer(req.body);
 
     db.prepare(
@@ -149,7 +154,7 @@ const createCustomersRouter = (db) => {
     res.redirect('/customers');
   });
 
-  router.post('/:id', (req, res) => {
+  router.post('/:id', requireRoles('admin', 'accountant'), (req, res) => {
     const customerId = parseRecordId(req.params.id);
     const customer = readCustomer(req.body);
     const result = db
@@ -175,7 +180,7 @@ const createCustomersRouter = (db) => {
     res.redirect('/customers');
   });
 
-  router.post('/:id/delete', (req, res) => {
+  router.post('/:id/delete', requireRoles('admin', 'accountant'), (req, res) => {
     const customerId = parseRecordId(req.params.id);
     const result = db
       .prepare('DELETE FROM customers WHERE id = ?')

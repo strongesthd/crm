@@ -1,0 +1,93 @@
+<%- include('partials/app-shell-start') %>
+<div class="mb-7">
+  <h1 class="text-2xl font-bold tracking-tight text-slate-900">Người dùng</h1>
+  <p class="mt-1 text-sm text-slate-500">Tạo tài khoản nhân viên và cấp quyền duyệt phiếu.</p>
+</div>
+
+<section class="mb-6 panel-card">
+  <div class="mb-5">
+    <h2 class="text-base font-semibold text-slate-900">Tạo tài khoản nhân viên</h2>
+    <p class="mt-1 text-sm text-slate-500">Mật khẩu tối thiểu 12 ký tự. Quyền duyệt có thể thay đổi sau.</p>
+  </div>
+  <form method="post" action="/users" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div>
+      <label for="user-full-name" class="form-label">Họ tên</label>
+      <input id="user-full-name" name="fullName" required maxlength="120" class="form-input" autocomplete="name">
+    </div>
+    <div>
+      <label for="user-username" class="form-label">Tên đăng nhập</label>
+      <input id="user-username" name="username" required minlength="3" maxlength="80" pattern="[A-Za-z0-9._-]+" class="form-input" autocomplete="username">
+    </div>
+    <div>
+      <label for="user-password" class="form-label">Mật khẩu tạm</label>
+      <input id="user-password" name="password" type="password" required minlength="12" maxlength="128" class="form-input" autocomplete="new-password">
+    </div>
+    <div>
+      <label for="user-role" class="form-label">Chức danh</label>
+      <select id="user-role" name="role" required class="form-input">
+        <% userRoles.forEach((role) => { %><option value="<%= role.value %>"><%= role.label %></option><% }) %>
+      </select>
+    </div>
+    <div class="flex flex-col justify-end gap-3">
+      <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="canApprove" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+        Có quyền duyệt phiếu
+      </label>
+      <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Tạo tài khoản</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel-card">
+  <div class="mb-5">
+    <h2 class="text-base font-semibold text-slate-900">Danh sách tài khoản</h2>
+    <p class="mt-1 text-sm text-slate-500">Tài khoản bị khóa sẽ không đăng nhập được.</p>
+  </div>
+  <% if (users.length === 0) { %>
+    <%- include('partials/empty-state', { icon: 'users', title: 'Chưa có tài khoản', description: 'Tạo tài khoản nhân viên ở biểu mẫu phía trên.' }) %>
+  <% } else { %>
+    <div class="overflow-x-auto">
+      <table class="data-table min-w-[900px]">
+        <thead><tr><th>Người dùng</th><th>Chức danh</th><th>Trạng thái</th><th>Quyền duyệt</th><th class="text-right">Tài khoản</th></tr></thead>
+        <tbody>
+          <% users.forEach((user) => { %>
+            <tr>
+              <td>
+                <span class="block font-semibold text-slate-800"><%= user.fullName %></span>
+                <span class="mt-0.5 block text-xs text-slate-500"><%= user.username %></span>
+              </td>
+              <td><span class="badge <%= user.role === 'admin' ? 'badge-info' : 'badge-neutral' %>"><%= user.roleLabel %></span></td>
+              <td><span class="badge <%= user.isActive ? 'badge-paid' : 'badge-neutral' %>"><%= user.isActive ? 'Đang hoạt động' : 'Đã khóa' %></span></td>
+              <td>
+                <% if (user.role === 'admin') { %>
+                  <span class="text-sm font-medium text-emerald-700">Luôn được duyệt</span>
+                <% } else { %>
+                  <form method="post" action="/users/<%= user.id %>/approval-permission" class="flex items-center gap-2">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                      <input type="checkbox" name="canApprove" <%= user.canApprove ? 'checked' : '' %> class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                      Được duyệt
+                    </label>
+                    <button type="submit" class="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Lưu</button>
+                  </form>
+                <% } %>
+              </td>
+              <td class="text-right">
+                <% if (user.id !== currentUser.id) { %>
+                  <form method="post" action="/users/<%= user.id %>/status">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold <%= user.isActive ? 'text-rose-700 hover:bg-rose-50' : 'text-emerald-700 hover:bg-emerald-50' %>"><%= user.isActive ? 'Khóa tài khoản' : 'Kích hoạt' %></button>
+                  </form>
+                <% } else { %>
+                  <span class="text-xs text-slate-400">Tài khoản của bạn</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+<%- include('partials/app-shell-end') %>

@@ -4,9 +4,11 @@
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">Khách hàng</h1>
     <p class="mt-1 text-sm text-slate-500">Quản lý thông tin và theo dõi lịch sử giao dịch của khách hàng.</p>
   </div>
-  <button type="button" data-modal-target="customer-modal" data-modal-toggle="customer-modal" data-customer-create class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
-    <i data-lucide="plus" class="h-4 w-4"></i>Thêm khách hàng
-  </button>
+  <% if (canManageCustomers) { %>
+    <button type="button" data-modal-target="customer-modal" data-modal-toggle="customer-modal" data-customer-create class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+      <i data-lucide="plus" class="h-4 w-4"></i>Thêm khách hàng
+    </button>
+  <% } %>
 </div>
 
 <section class="mb-5 flex flex-wrap gap-2">
@@ -56,11 +58,13 @@
               <td>
                 <div class="flex justify-end gap-1">
                   <button type="button" data-customer-details="<%= customer.id %>" class="icon-button" aria-label="Xem chi tiết <%= customer.name %>" title="Chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                  <button type="button" data-customer-edit="<%= customer.detailsJson %>" data-modal-target="customer-modal" data-modal-toggle="customer-modal" class="icon-button" aria-label="Sửa <%= customer.name %>" title="Chỉnh sửa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
-                  <form method="post" action="/customers/<%= customer.id %>/delete" data-confirm-delete data-confirm-message="Xóa khách hàng này? Các giao dịch đã liên kết vẫn được giữ lại.">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button type="submit" class="icon-button text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Xóa <%= customer.name %>" title="Xóa"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
-                  </form>
+                  <% if (canManageCustomers) { %>
+                    <button type="button" data-customer-edit="<%= customer.detailsJson %>" data-modal-target="customer-modal" data-modal-toggle="customer-modal" class="icon-button" aria-label="Sửa <%= customer.name %>" title="Chỉnh sửa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
+                    <form method="post" action="/customers/<%= customer.id %>/delete" data-confirm-delete data-confirm-message="Xóa khách hàng này? Các giao dịch đã liên kết vẫn được giữ lại.">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button type="submit" class="icon-button text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Xóa <%= customer.name %>" title="Xóa"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                    </form>
+                  <% } %>
                 </div>
               </td>
             </tr>
@@ -72,6 +76,7 @@
   <% } %>
 </section>
 
+<% if (canManageCustomers) { %>
 <div id="customer-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
   <div class="relative max-h-full w-full max-w-xl">
     <div class="relative rounded-2xl bg-white shadow-xl">
@@ -103,6 +108,7 @@
     </div>
   </div>
 </div>
+<% } %>
 
 <div id="customer-details-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
   <div class="relative max-h-full w-full max-w-3xl">

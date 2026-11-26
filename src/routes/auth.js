@@ -53,13 +53,17 @@ const createAuthRouter = (db) => {
 
       const user = db
         .prepare(
-          `SELECT id, username, password_hash, full_name
+          `SELECT id, username, password_hash, full_name, is_active
            FROM users
            WHERE username = ? COLLATE NOCASE`,
         )
         .get(username);
 
-      if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+      if (
+        !user ||
+        !user.is_active ||
+        !bcrypt.compareSync(password, user.password_hash)
+      ) {
         res.status(401).render('login', {
           title: 'Đăng nhập',
           username,

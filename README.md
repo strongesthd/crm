@@ -17,6 +17,19 @@ Trong `.env`, đặt `ADMIN_USER`, `ADMIN_PASS` (ít nhất 12 ký tự) và
 `SESSION_SECRET` (ít nhất 32 ký tự). Có thể tạo secret bằng
 `openssl rand -hex 32`. Mở `http://localhost:3000`.
 
+## Tài khoản và duyệt phiếu
+
+Đăng nhập bằng tài khoản quản trị, mở **Người dùng** trên thanh bên để tạo
+tài khoản **Kế toán** hoặc **Thủ quỹ**. Kế toán được thêm/sửa khách hàng và
+chỉnh sửa phiếu đang chờ duyệt; thủ quỹ chỉ tạo phiếu. Cả hai vai trò đều xem
+được dữ liệu. Quyền duyệt được cấp riêng trên từng tài khoản tại trang Người
+dùng; quản trị viên luôn có quyền duyệt.
+
+Mọi phiếu mới đều ở trạng thái **Chờ duyệt**. Người có quyền duyệt có thể duyệt
+hoặc từ chối phiếu; từ chối phải có lý do. Chỉ phiếu đã duyệt mới được tính vào
+tổng thu chi, công nợ và báo cáo. Khi nâng cấp cơ sở dữ liệu hiện có, các tài
+khoản cũ được giữ lại và giao dịch cũ được đánh dấu đã duyệt.
+
 ## Deploy VPS
 
 Workflow GitHub Actions deploy mỗi khi push lên `main`. Dùng chung thư mục repo

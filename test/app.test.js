@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const Database = require('better-sqlite3');
 
 process.env.NODE_ENV = 'test';
 process.env.SESSION_SECRET =
@@ -30,6 +31,51 @@ const getSessionCookie = (response) => {
 
   return setCookieHeader.split(';')[0];
 };
+
+const login = async (baseUrl, username, password) => {
+  const loginPageResponse = await fetch(`${baseUrl}/login`);
+  const loginPageHtml = await loginPageResponse.text();
+  const cookie = getSessionCookie(loginPageResponse);
+  const response = await fetch(`${baseUrl}/login`, {
+    method: 'POST',
+    headers: {
+      cookie,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      _csrf: extractCsrfToken(loginPageHtml),
+      username,
+      password,
+    }),
+    redirect: 'manual',
+  });
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get('location'), '/');
+
+  return getSessionCookie(response);
+};
+
+const getCsrfToken = async (baseUrl, cookie, route) => {
+  const response = await fetch(`${baseUrl}${route}`, {
+    headers: { cookie },
+  });
+
+  assert.equal(response.status, 200);
+
+  return extractCsrfToken(await response.text());
+};
+
+const postForm = (baseUrl, route, cookie, csrfToken, fields = {}) =>
+  fetch(`${baseUrl}${route}`, {
+    method: 'POST',
+    headers: {
+      cookie,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ _csrf: csrfToken, ...fields }),
+    redirect: 'manual',
+  });
 
 test('protects CRM routes, validates CSRF, escapes customer input, and exports filtered CSV', async (context) => {
   const temporaryDirectory = fs.mkdtempSync(
@@ -146,6 +192,371 @@ test('protects CRM routes, validates CSRF, escapes customer input, and exports f
   assert.match(csv, /"Loại","Số tiền \(VNĐ\)"/);
   assert.match(csv, /"Thu"/);
   assert.doesNotMatch(csv, /"Chi"/);
+});
+
+test('enforces staff permissions and the transaction approval workflow', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-finance-approval-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const adminCookie = await login(baseUrl, adminUser, adminPass);
+  const adminCsrfToken = await getCsrfToken(baseUrl, adminCookie, '/users');
+  const accountantPassword = 'accountant-password-12';
+  const cashierPassword = 'cashier-password-123';
+
+  const createAccountantResponse = await postForm(
+    baseUrl,
+    '/users',
+    adminCookie,
+    adminCsrfToken,
+    {
+      fullName: 'Nhân viên kế toán',
+      username: 'accountant01',
+      password: accountantPassword,
+      role: 'accountant',
+    },
+  );
+  const createCashierResponse = await postForm(
+    baseUrl,
+    '/users',
+    adminCookie,
+    adminCsrfToken,
+    {
+      fullName: 'Nhân viên thủ quỹ',
+      username: 'cashier01',
+      password: cashierPassword,
+      role: 'cashier',
+      canApprove: 'on',
+    },
+  );
+
+  assert.equal(createAccountantResponse.status, 302);
+  assert.equal(createCashierResponse.status, 302);
+
+  const accountantCookie = await login(
+    baseUrl,
+    'accountant01',
+    accountantPassword,
+  );
+  const accountantCsrfToken = await getCsrfToken(
+    baseUrl,
+    accountantCookie,
+    '/transactions',
+  );
+  const transactionFields = {
+    type: 'THU',
+    amount: '1234',
+    category: 'Dịch vụ',
+    description: 'Phiếu chờ duyệt',
+    transactionDate: new Date().toISOString().slice(0, 10),
+    paymentStatus: 'Công nợ',
+    customerId: '',
+  };
+  const createPendingResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    accountantCookie,
+    accountantCsrfToken,
+    transactionFields,
+  );
+  const pendingTransaction = db
+    .prepare(
+      `SELECT id, approval_status, created_by, payment_status
+       FROM transactions
+       WHERE description = ?`,
+    )
+    .get(transactionFields.description);
+  const createCustomerAsAccountantResponse = await postForm(
+    baseUrl,
+    '/customers',
+    accountantCookie,
+    accountantCsrfToken,
+    {
+       name: 'Khách hàng do kế toán tạo',
+       phone: '',
+       email: '',
+       status: 'Tiềm năng',
+       notes: '',
+    },
+  );
+  const editPendingAsAccountantResponse = await postForm(
+    baseUrl,
+    `/transactions/${pendingTransaction.id}`,
+    accountantCookie,
+    accountantCsrfToken,
+    { ...transactionFields, amount: '2234' },
+  );
+
+  assert.equal(createPendingResponse.status, 302);
+  assert.equal(createCustomerAsAccountantResponse.status, 302);
+  assert.equal(editPendingAsAccountantResponse.status, 302);
+  assert.equal(
+    db.prepare('SELECT amount FROM transactions WHERE id = ?')
+       .get(pendingTransaction.id).amount,
+    2234,
+  );
+  assert.equal(pendingTransaction.approval_status, 'PENDING');
+  assert.equal(
+    pendingTransaction.created_by,
+    db.prepare("SELECT id FROM users WHERE username = 'accountant01'").get().id,
+  );
+
+  const accountantApprovalResponse = await postForm(
+    baseUrl,
+    `/transactions/${pendingTransaction.id}/approve`,
+    accountantCookie,
+    accountantCsrfToken,
+  );
+  assert.equal(accountantApprovalResponse.status, 403);
+
+  const cashierCookie = await login(baseUrl, 'cashier01', cashierPassword);
+  const cashierCsrfToken = await getCsrfToken(
+    baseUrl,
+    cashierCookie,
+    '/transactions',
+  );
+  const createCustomerResponse = await postForm(
+    baseUrl,
+    '/customers',
+    cashierCookie,
+    cashierCsrfToken,
+    {
+      name: 'Không được phép tạo',
+      phone: '',
+      email: '',
+      status: 'Tiềm năng',
+      notes: '',
+    },
+  );
+  const editPendingResponse = await postForm(
+    baseUrl,
+    `/transactions/${pendingTransaction.id}`,
+    cashierCookie,
+    cashierCsrfToken,
+    { ...transactionFields, amount: '9999' },
+  );
+  const markPendingAsPaidResponse = await postForm(
+    baseUrl,
+    `/transactions/${pendingTransaction.id}/paid`,
+    cashierCookie,
+    cashierCsrfToken,
+  );
+
+  assert.equal(createCustomerResponse.status, 403);
+  assert.equal(editPendingResponse.status, 403);
+  assert.equal(markPendingAsPaidResponse.status, 403);
+  const cashierUsersResponse = await fetch(`${baseUrl}/users`, {
+    headers: { cookie: cashierCookie },
+  });
+  assert.equal(cashierUsersResponse.status, 403);
+  assert.equal(
+    db.prepare('SELECT payment_status FROM transactions WHERE id = ?')
+      .get(pendingTransaction.id).payment_status,
+    'Công nợ',
+  );
+
+  const selfApproveFields = {
+    ...transactionFields,
+    amount: '5678',
+    description: 'Phiếu tự duyệt',
+    paymentStatus: 'Đã thanh toán',
+  };
+  const createSelfApproveResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    cashierCookie,
+    cashierCsrfToken,
+    selfApproveFields,
+  );
+  const selfApproveTransaction = db
+    .prepare('SELECT id FROM transactions WHERE description = ?')
+    .get(selfApproveFields.description);
+  const selfApproveResponse = await postForm(
+    baseUrl,
+    `/transactions/${selfApproveTransaction.id}/approve`,
+    cashierCookie,
+    cashierCsrfToken,
+  );
+
+  assert.equal(createSelfApproveResponse.status, 302);
+  assert.equal(selfApproveResponse.status, 302);
+  assert.deepEqual(
+    db
+      .prepare(
+        'SELECT approval_status, reviewed_by FROM transactions WHERE id = ?',
+      )
+      .get(selfApproveTransaction.id),
+    {
+      approval_status: 'APPROVED',
+      reviewed_by: db
+        .prepare("SELECT id FROM users WHERE username = 'cashier01'")
+        .get().id,
+    },
+  );
+
+  const rejectedFields = {
+    ...transactionFields,
+    amount: '5000',
+    description: 'Phiếu bị từ chối',
+  };
+  await postForm(
+    baseUrl,
+    '/transactions',
+    cashierCookie,
+    cashierCsrfToken,
+    rejectedFields,
+  );
+  const rejectedTransaction = db
+    .prepare('SELECT id FROM transactions WHERE description = ?')
+    .get(rejectedFields.description);
+  const missingReasonResponse = await postForm(
+    baseUrl,
+    `/transactions/${rejectedTransaction.id}/reject`,
+    cashierCookie,
+    cashierCsrfToken,
+  );
+  const rejectResponse = await postForm(
+    baseUrl,
+    `/transactions/${rejectedTransaction.id}/reject`,
+    cashierCookie,
+    cashierCsrfToken,
+    { reason: 'Thiếu chứng từ' },
+  );
+
+  assert.equal(missingReasonResponse.status, 400);
+  assert.equal(rejectResponse.status, 302);
+  assert.deepEqual(
+    db
+      .prepare(
+        `SELECT approval_status, rejection_reason
+         FROM transactions WHERE id = ?`,
+      )
+      .get(rejectedTransaction.id),
+    {
+      approval_status: 'REJECTED',
+      rejection_reason: 'Thiếu chứng từ',
+    },
+  );
+
+  const [year, month] = transactionFields.transactionDate.split('-');
+  const dashboardResponse = await fetch(
+    `${baseUrl}/?month=${Number(month)}&year=${year}`,
+    { headers: { cookie: accountantCookie } },
+  );
+  const dashboardHtml = await dashboardResponse.text();
+  const incomeMetric = dashboardHtml.match(
+    /Tổng thu đã thanh toán<\/p>\s*<p[^>]*>([^<]+)<\/p>/,
+  );
+
+  assert.equal(dashboardResponse.status, 200);
+  assert.ok(incomeMetric);
+  assert.equal(incomeMetric[1], '15.005.678 ₫');
+
+  const rejectedCsvResponse = await fetch(
+    `${baseUrl}/transactions/export.csv?approvalStatus=REJECTED`,
+    { headers: { cookie: accountantCookie } },
+  );
+  const rejectedCsv = await rejectedCsvResponse.text();
+
+  assert.equal(rejectedCsvResponse.status, 200);
+  assert.match(rejectedCsv, /"Từ chối"/);
+  assert.match(rejectedCsv, /"Phiếu bị từ chối"/);
+  assert.doesNotMatch(rejectedCsv, /"Phiếu tự duyệt"/);
+});
+
+test('migrates existing users and transactions without losing records', () => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-finance-migration-test-'),
+  );
+  const legacyDatabasePath = path.join(
+    temporaryDirectory,
+    'database.sqlite',
+  );
+  const legacyDb = new Database(legacyDatabasePath);
+
+  legacyDb.exec(`
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      password_hash TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE customers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Tiềm năng',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      transaction_date TEXT NOT NULL,
+      payment_status TEXT NOT NULL DEFAULT 'Đã thanh toán',
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO users (username, password_hash, full_name)
+      VALUES ('admin', 'existing-hash', 'Quản trị viên');
+    INSERT INTO customers (name) VALUES ('Khách hàng cũ');
+    INSERT INTO transactions
+      (type, amount, category, transaction_date, customer_id)
+      VALUES ('THU', 2000, 'Bán hàng', '2026-11-26', 1);
+  `);
+  legacyDb.close();
+
+  const migratedDb = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+
+  try {
+    assert.deepEqual(
+      migratedDb
+        .prepare(
+          `SELECT u.role, u.can_approve, t.approval_status, t.amount,
+            c.name AS customer_name
+           FROM users u
+           JOIN transactions t ON t.customer_id = 1
+           JOIN customers c ON c.id = t.customer_id`,
+        )
+        .get(),
+      {
+        role: 'admin',
+        can_approve: 1,
+        approval_status: 'APPROVED',
+        amount: 2000,
+        customer_name: 'Khách hàng cũ',
+      },
+    );
+  } finally {
+    migratedDb.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test('validates ISO transaction dates and protects CSV from formula injection', () => {

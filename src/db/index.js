@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 
 const PAYMENT_STATUSES = ['Đã thanh toán', 'Công nợ'];
+const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
 const TRANSACTION_TYPES = ['THU', 'CHI'];
 const CUSTOMER_STATUSES = [
   'Tiềm năng',
@@ -19,6 +20,15 @@ const TRANSACTION_CATEGORIES = [
   'Marketing',
   'Khác',
 ];
+const USER_ROLES = ['accountant', 'cashier'];
+
+const ensureColumn = (db, tableName, columnName, definition) => {
+  const columns = db.pragma(`table_info(${tableName})`);
+
+  if (!columns.some((column) => column.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+};
 
 const createDatabase = ({ adminPass, adminUser, databasePath }) => {
   fs.mkdirSync(databasePath, { recursive: true });
@@ -37,6 +47,9 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       username TEXT NOT NULL COLLATE NOCASE UNIQUE,
       password_hash TEXT NOT NULL,
       full_name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'admin',
+      can_approve INTEGER NOT NULL DEFAULT 1,
+      is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -61,6 +74,11 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       payment_status TEXT NOT NULL DEFAULT 'Đã thanh toán'
         CHECK (payment_status IN ('Đã thanh toán', 'Công nợ')),
       customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      approval_status TEXT NOT NULL DEFAULT 'APPROVED'
+        CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      rejection_reason TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -82,15 +100,56 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires);
   `);
 
+  ensureColumn(db, 'users', 'role', "TEXT NOT NULL DEFAULT 'admin'");
+  ensureColumn(db, 'users', 'can_approve', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn(db, 'users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn(
+    db,
+    'transactions',
+    'approval_status',
+    "TEXT NOT NULL DEFAULT 'APPROVED'",
+  );
+  ensureColumn(
+    db,
+    'transactions',
+    'created_by',
+    'INTEGER REFERENCES users(id) ON DELETE SET NULL',
+  );
+  ensureColumn(
+    db,
+    'transactions',
+    'reviewed_by',
+    'INTEGER REFERENCES users(id) ON DELETE SET NULL',
+  );
+  ensureColumn(
+    db,
+    'transactions',
+    'rejection_reason',
+    "TEXT NOT NULL DEFAULT ''",
+  );
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_transactions_approval
+      ON transactions(approval_status, transaction_date);
+    CREATE INDEX IF NOT EXISTS idx_transactions_created_by
+      ON transactions(created_by, approval_status);
+  `);
+
   const seed = db.transaction(() => {
     const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
 
     if (userCount === 0) {
       db.prepare(
-        `INSERT INTO users (username, password_hash, full_name)
-         VALUES (?, ?, ?)`,
+        `INSERT INTO users
+          (username, password_hash, full_name, role, can_approve, is_active)
+         VALUES (?, ?, ?, 'admin', 1, 1)`,
       ).run(adminUser, bcrypt.hashSync(adminPass, 12), 'Quản trị viên');
     }
+
+    db.prepare(
+      `UPDATE users
+       SET role = 'admin', can_approve = 1
+       WHERE username = ? COLLATE NOCASE`,
+    ).run(adminUser);
 
     if (!isNewDatabase) {
       return;
@@ -157,9 +216,11 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
 };
 
 module.exports = {
+  APPROVAL_STATUSES,
   CUSTOMER_STATUSES,
   PAYMENT_STATUSES,
   TRANSACTION_CATEGORIES,
   TRANSACTION_TYPES,
+  USER_ROLES,
   createDatabase,
 };

@@ -36,7 +36,8 @@ const createDashboardRouter = (db) => {
           COALESCE(SUM(CASE WHEN type = 'THU' THEN amount ELSE 0 END), 0) AS income,
           COALESCE(SUM(CASE WHEN type = 'CHI' THEN amount ELSE 0 END), 0) AS expenses
          FROM transactions
-         WHERE payment_status = 'Đã thanh toán'
+         WHERE approval_status = 'APPROVED'
+           AND payment_status = 'Đã thanh toán'
            AND transaction_date >= ? AND transaction_date < ?`,
       )
       .get(start, end);
@@ -45,9 +46,19 @@ const createDashboardRouter = (db) => {
       .prepare(
         `SELECT COALESCE(SUM(amount), 0) AS amount
          FROM transactions
-         WHERE payment_status = 'Công nợ'`,
+         WHERE approval_status = 'APPROVED'
+           AND payment_status = 'Công nợ'`,
       )
       .get().amount;
+
+    const pendingApprovalCount =
+      req.currentUser.isAdmin || req.currentUser.canApprove
+        ? db
+            .prepare(
+              "SELECT COUNT(*) AS count FROM transactions WHERE approval_status = 'PENDING'",
+            )
+            .get().count
+        : 0;
 
     const monthStarts = Array.from({ length: 6 }, (_value, index) => {
       const date = new Date(year, month - 1 - (5 - index), 1);
@@ -65,7 +76,8 @@ const createDashboardRouter = (db) => {
           type,
           SUM(amount) AS total
          FROM transactions
-         WHERE payment_status = 'Đã thanh toán'
+         WHERE approval_status = 'APPROVED'
+           AND payment_status = 'Đã thanh toán'
            AND transaction_date >= ? AND transaction_date < ?
          GROUP BY month_key, type`,
       )
@@ -133,6 +145,9 @@ const createDashboardRouter = (db) => {
         ),
       },
       recentTransactions,
+      canApproveTransactions:
+        req.currentUser.isAdmin || req.currentUser.canApprove,
+      pendingApprovalCount,
     });
   });
 

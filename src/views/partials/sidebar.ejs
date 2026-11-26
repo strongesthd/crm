@@ -21,6 +21,11 @@
       <a href="/transactions" class="nav-link <%= activePage === 'transactions' ? 'nav-link-active' : '' %>">
         <i data-lucide="arrow-left-right" class="h-5 w-5"></i><span>Sổ thu chi</span>
       </a>
+      <% if (currentUser.isAdmin) { %>
+        <a href="/users" class="nav-link <%= activePage === 'users' ? 'nav-link-active' : '' %>">
+          <i data-lucide="user-round-cog" class="h-5 w-5"></i><span>Người dùng</span>
+        </a>
+      <% } %>
     </nav>
 
     <div class="mt-auto border-t border-slate-100 pt-4">
@@ -28,7 +33,7 @@
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"><%= getInitials(currentUser.fullName) %></span>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-medium text-slate-800"><%= currentUser.fullName %></span>
-          <span class="block truncate text-xs text-slate-500"><%= currentUser.username %></span>
+          <span class="block truncate text-xs text-slate-500"><%= currentUser.username %> · <%= currentUser.role === 'admin' ? 'Quản trị viên' : currentUser.role === 'accountant' ? 'Kế toán' : 'Thủ quỹ' %></span>
         </span>
       </div>
       <form method="post" action="/logout">

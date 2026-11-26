@@ -23,6 +23,13 @@
   </form>
 </div>
 
+<% if (canApproveTransactions && pendingApprovalCount > 0) { %>
+  <a href="/transactions?approvalStatus=PENDING" class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:bg-amber-100">
+    <span><strong><%= pendingApprovalCount %> phiếu</strong> đang chờ bạn duyệt.</span>
+    <span class="shrink-0 font-semibold">Xem phiếu <i data-lucide="arrow-right" class="inline h-4 w-4"></i></span>
+  </a>
+<% } %>
+
 <section class="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
   <article class="kpi-card">
     <div class="flex items-start justify-between">
@@ -107,6 +114,7 @@
             <div class="text-right">
               <p class="whitespace-nowrap text-sm font-semibold <%= transaction.type === 'THU' ? 'text-emerald-700' : 'text-rose-700' %>"><%= transaction.type === 'THU' ? '+' : '−' %><%= transaction.formattedAmount %></p>
               <span class="badge <%= transaction.payment_status === 'Công nợ' ? 'badge-debt' : 'badge-paid' %> mt-1"><%= transaction.payment_status %></span>
+              <span class="badge <%= transaction.approval_status === 'PENDING' ? 'badge-debt' : transaction.approval_status === 'REJECTED' ? 'badge-neutral' : 'badge-paid' %> mt-1"><%= transaction.approval_status === 'PENDING' ? 'Chờ duyệt' : transaction.approval_status === 'REJECTED' ? 'Từ chối' : 'Đã duyệt' %></span>
             </div>
           </div>
         <% }) %>

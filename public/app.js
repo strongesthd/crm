@@ -211,7 +211,14 @@
             const tableHead = document.createElement('thead');
             const headRow = document.createElement('tr');
 
-            for (const label of ['Ngày', 'Loại', 'Diễn giải', 'Số tiền', 'Trạng thái']) {
+            for (const label of [
+              'Ngày',
+              'Loại',
+              'Diễn giải',
+              'Số tiền',
+              'Thanh toán',
+              'Duyệt',
+            ]) {
               const cell = document.createElement('th');
               cell.textContent = label;
               headRow.append(cell);
@@ -228,6 +235,11 @@
                 transaction.description || transaction.category,
                 transaction.formattedAmount,
                 transaction.payment_status,
+                transaction.approval_status === 'PENDING'
+                  ? 'Chờ duyệt'
+                  : transaction.approval_status === 'REJECTED'
+                    ? `Từ chối: ${transaction.rejection_reason}`
+                    : 'Đã duyệt',
               ];
 
               for (const value of values) {
