@@ -35,7 +35,10 @@ file này. Trong GitHub, tạo các Actions secrets `VPS_HOST`, `VPS_USER`,
 
 Deploy dừng stack Twenty cũ nếu cấu hình Compose cũ còn tồn tại, sau đó thay
 source trong `/home/app/crm`. Workflow giữ lại `.env`, `.git` và `data/`; không
-xóa volume Docker. App lắng nghe tại `127.0.0.1:3002`, khớp Nginx
+xóa volume Docker. Nếu bản triển khai trước có
+`/home/app/crm/internal-crm-finance/.env`, workflow chép các biến CRM còn thiếu
+từ file đó vào `.env` gốc trước khi dọn thư mục app cũ. App lắng nghe tại
+`127.0.0.1:3002`, khớp Nginx
 `crm.novatechhp.vn` với `proxy_pass http://127.0.0.1:3002`. Nginx HTTPS cần gửi
 `X-Forwarded-Proto https`; cấu hình này cho phép session cookie bảo mật hoạt
 động sau TLS termination.

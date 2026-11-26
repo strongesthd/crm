@@ -95,6 +95,18 @@ jobs:
               exit 1
             fi
 
+            APP_ENV="$APP_DIR/internal-crm-finance/.env"
+            if [ -f "$APP_ENV" ]; then
+              for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
+                if ! grep -q "^${variable}=." "$APP_DIR/.env"; then
+                  app_setting=$(grep -m 1 "^${variable}=." "$APP_ENV" || true)
+                  if [ -n "$app_setting" ]; then
+                    printf '%s\n' "$app_setting" >> "$APP_DIR/.env"
+                  fi
+                fi
+              done
+            fi
+
             for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
               if ! grep -q "^${variable}=." "$APP_DIR/.env"; then
                 echo "Missing $variable in $APP_DIR/.env."
