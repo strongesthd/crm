@@ -77,29 +77,36 @@ jobs:
           command_timeout: 20m
           script: |
             set -Eeuo pipefail
+            trap 'status=$?; echo "Deploy failed at line $LINENO (exit $status)." >&2; exit "$status"' ERR
 
             APP_DIR=/home/app/crm
             UPLOAD_DIR=/tmp/crm-upload-${{ github.run_id }}
             PACKAGE="$UPLOAD_DIR/crm-deploy.tgz"
+            echo 'Checking uploaded package...'
             if [ ! -f "$PACKAGE" ]; then
               PACKAGE="$UPLOAD_DIR/crm-deploy.tgz/crm-deploy.tgz"
             fi
-            test -f "$PACKAGE"
-            test -f "$APP_DIR/.env" || {
+            if [ ! -f "$PACKAGE" ]; then
+              echo "Deployment package is missing from $UPLOAD_DIR."
+              exit 1
+            fi
+            if [ ! -f "$APP_DIR/.env" ]; then
               echo "Missing $APP_DIR/.env; add ADMIN_USER, ADMIN_PASS, and SESSION_SECRET."
               exit 1
-            }
+            fi
 
             for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
-              grep -q "^${variable}=." "$APP_DIR/.env" || {
+              if ! grep -q "^${variable}=." "$APP_DIR/.env"; then
                 echo "Missing $variable in $APP_DIR/.env."
                 exit 1
-              }
+              fi
             done
 
+            echo 'Preflight checks passed.'
             LEGACY_DIR="$APP_DIR/packages/twenty-docker"
             if [ -f "$LEGACY_DIR/docker-compose.yml" ] \
               && [ -f "$LEGACY_DIR/docker-compose.prod.yml" ]; then
+              echo 'Stopping the old Twenty Compose stack...'
               cd "$LEGACY_DIR"
               docker compose \
                 --env-file "$APP_DIR/.env" \
@@ -107,17 +114,20 @@ jobs:
                 -f docker-compose.prod.yml down
             fi
 
+            echo 'Preparing the app directory...'
             mkdir -p "$APP_DIR/data"
             chmod 700 "$APP_DIR"
             chmod 600 "$APP_DIR/.env"
             chown -R 1000:1000 "$APP_DIR/data"
 
+            echo 'Replacing Twenty source with the new app...'
             find "$APP_DIR" -mindepth 1 -maxdepth 1 \
               ! -name '.env' ! -name '.git' ! -name 'data' \
               -exec rm -rf {} +
             tar -xzf "$PACKAGE" -C "$APP_DIR" --no-same-owner
             chown -R 1000:1000 "$APP_DIR/data"
 
+            echo 'Building and starting the app...'
             cd "$APP_DIR"
             docker compose --project-name internal-crm-finance \
               --env-file "$APP_DIR/.env" \
