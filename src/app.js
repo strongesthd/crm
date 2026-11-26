@@ -60,6 +60,11 @@ const createApp = (db) => {
   app.use(express.static(path.join(__dirname, '..', 'public'), {
     maxAge: config.isProduction ? '1d' : 0,
     etag: true,
+    setHeaders: (res, filePath) => {
+      if (path.basename(filePath) === 'app.js') {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
   }));
   app.use(
     session({

@@ -99,6 +99,12 @@ test('protects CRM routes, validates CSRF, escapes customer input, and exports f
   await new Promise((resolve) => server.once('listening', resolve));
 
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const appScriptResponse = await fetch(`${baseUrl}/app.js`);
+  await appScriptResponse.arrayBuffer();
+
+  assert.equal(appScriptResponse.status, 200);
+  assert.equal(appScriptResponse.headers.get('cache-control'), 'no-cache');
+
   const unauthenticatedResponse = await fetch(`${baseUrl}/customers`, {
     redirect: 'manual',
   });
