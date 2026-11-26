@@ -32,10 +32,10 @@
                   </span>
                 </button>
               </td>
-              <td><span class="badge <%= user.role === 'admin' ? 'badge-info' : 'badge-neutral' %>"><%= user.roleLabel %></span></td>
+              <td><span class="badge <%= user.isPrivileged ? 'badge-info' : 'badge-neutral' %>"><%= user.roleLabel %></span></td>
               <td><span class="badge <%= user.isActive ? 'badge-paid' : 'badge-neutral' %>"><%= user.isActive ? 'Đang hoạt động' : 'Đã khóa' %></span></td>
               <td>
-                <% if (user.role === 'admin') { %>
+                <% if (user.isPrivileged) { %>
                   <span class="text-sm font-medium text-emerald-700">Luôn được duyệt</span>
                 <% } else { %>
                   <span class="text-sm text-slate-600"><%= user.canApprove ? 'Được duyệt' : 'Không có quyền' %></span>
@@ -82,7 +82,7 @@
             <% userRoles.forEach((role) => { %><option value="<%= role.value %>"><%= role.label %></option><% }) %>
           </select>
         </div>
-        <label class="flex items-center gap-2 text-sm text-slate-700">
+        <label id="user-create-approval-option" class="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" name="canApprove" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
           Có quyền duyệt phiếu
         </label>

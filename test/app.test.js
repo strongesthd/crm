@@ -664,6 +664,137 @@ test('enforces staff permissions and the transaction approval workflow', async (
   await login(baseUrl, 'accountant.self', selfUpdatedPassword);
 });
 
+test('grants managers administrator-level permissions', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-finance-manager-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const adminCookie = await login(baseUrl, adminUser, adminPass);
+  const adminCsrfToken = await getCsrfToken(baseUrl, adminCookie, '/users');
+  const managerPassword = 'manager-password-123';
+  const createManagerResponse = await postForm(
+    baseUrl,
+    '/users',
+    adminCookie,
+    adminCsrfToken,
+    {
+      fullName: 'Quản lý',
+      username: 'manager01',
+      password: managerPassword,
+      role: 'manager',
+    },
+  );
+
+  assert.equal(createManagerResponse.status, 302);
+  assert.deepEqual(
+    db.prepare('SELECT role, can_approve FROM users WHERE username = ?')
+      .get('manager01'),
+    { role: 'manager', can_approve: 1 },
+  );
+
+  const managerCookie = await login(
+    baseUrl,
+    'manager01',
+    managerPassword,
+  );
+  const usersPageResponse = await fetch(`${baseUrl}/users`, {
+    headers: { cookie: managerCookie },
+  });
+  const usersHtml = await usersPageResponse.text();
+  const managerCsrfToken = extractCsrfToken(usersHtml);
+
+  assert.equal(usersPageResponse.status, 200);
+  assert.match(usersHtml, /Quản lý/);
+
+  const createCashierResponse = await postForm(
+    baseUrl,
+    '/users',
+    managerCookie,
+    managerCsrfToken,
+    {
+      fullName: 'Thủ quỹ mới',
+      username: 'cashier02',
+      password: 'cashier-password-123',
+      role: 'cashier',
+    },
+  );
+  const createCustomerResponse = await postForm(
+    baseUrl,
+    '/customers',
+    managerCookie,
+    managerCsrfToken,
+    {
+      name: 'Khách hàng do quản lý tạo',
+      phone: '',
+      email: '',
+      status: 'Tiềm năng',
+      notes: '',
+    },
+  );
+  const transactionFields = {
+    type: 'THU',
+    amount: '1234',
+    category: 'Dịch vụ',
+    description: 'Phiếu do quản lý tạo',
+    transactionDate: new Date().toISOString().slice(0, 10),
+    paymentStatus: 'Công nợ',
+    customerId: '',
+  };
+  const createTransactionResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    managerCookie,
+    managerCsrfToken,
+    transactionFields,
+  );
+  const transaction = db
+    .prepare('SELECT id, approval_status FROM transactions WHERE description = ?')
+    .get(transactionFields.description);
+
+  assert.equal(createCashierResponse.status, 302);
+  assert.equal(createCustomerResponse.status, 302);
+  assert.equal(createTransactionResponse.status, 302);
+  assert.ok(transaction);
+  assert.equal(transaction.approval_status, 'PENDING');
+
+  const approveResponse = await postForm(
+    baseUrl,
+    `/transactions/${transaction.id}/approve`,
+    managerCookie,
+    managerCsrfToken,
+  );
+  const deleteResponse = await postForm(
+    baseUrl,
+    `/transactions/${transaction.id}/delete`,
+    managerCookie,
+    managerCsrfToken,
+  );
+
+  assert.equal(approveResponse.status, 302);
+  assert.equal(deleteResponse.status, 302);
+  assert.equal(
+    db.prepare('SELECT 1 FROM transactions WHERE id = ?').get(transaction.id),
+    undefined,
+  );
+});
+
 test('migrates existing users and transactions without losing records', () => {
   const temporaryDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'internal-crm-finance-migration-test-'),

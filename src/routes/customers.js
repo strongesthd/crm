@@ -69,9 +69,8 @@ const createCustomersRouter = (db) => {
       search,
       selectedStatus,
       customerStatuses: CUSTOMER_STATUSES,
-      canManageCustomers: ['admin', 'accountant'].includes(
-        req.currentUser.role,
-      ),
+      canManageCustomers:
+        req.currentUser.isAdmin || req.currentUser.role === 'accountant',
       statusCounts: Object.fromEntries(
         statusCounts.map(({ status, count }) => [status, count]),
       ),

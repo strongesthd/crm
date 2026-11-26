@@ -1,3 +1,5 @@
+const { PRIVILEGED_USER_ROLES } = require('../db');
+
 const requireAuthentication = (db) => (req, res, next) => {
   const sessionUser = req.session.user;
 
@@ -34,7 +36,7 @@ const requireAuthentication = (db) => (req, res, next) => {
   req.currentUser = {
     ...user,
     canApprove: Boolean(user.canApprove),
-    isAdmin: user.role === 'admin',
+    isAdmin: PRIVILEGED_USER_ROLES.includes(user.role),
   };
   req.session.user = {
     id: user.id,
@@ -47,7 +49,12 @@ const requireAuthentication = (db) => (req, res, next) => {
 };
 
 const requireRoles = (...roles) => (req, res, next) => {
-  if (!req.currentUser || !roles.includes(req.currentUser.role)) {
+  const hasRole =
+    req.currentUser &&
+    (roles.includes(req.currentUser.role) ||
+      (req.currentUser.isAdmin && roles.includes('admin')));
+
+  if (!hasRole) {
     next(Object.assign(new Error('Bạn không có quyền thực hiện thao tác này.'), {
       status: 403,
     }));

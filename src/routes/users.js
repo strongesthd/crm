@@ -1,13 +1,14 @@
 const bcrypt = require('bcryptjs');
 const express = require('express');
 
-const { USER_ROLES } = require('../db');
+const { PRIVILEGED_USER_ROLES, USER_ROLES } = require('../db');
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { readUserProfile } = require('../utils/user-profile');
 
 const USER_ROLE_LABELS = {
   admin: 'Quản trị viên',
+  manager: 'Quản lý',
   accountant: 'Kế toán',
   cashier: 'Thủ quỹ',
 };
@@ -27,7 +28,8 @@ const createUsersRouter = (db) => {
         `SELECT id, username, full_name AS fullName, role,
           can_approve AS canApprove, is_active AS isActive, created_at AS createdAt
          FROM users
-         ORDER BY CASE role WHEN 'admin' THEN 0 ELSE 1 END, full_name COLLATE NOCASE`,
+         ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,
+          full_name COLLATE NOCASE`,
       )
       .all()
       .map((user) => {
@@ -36,6 +38,7 @@ const createUsersRouter = (db) => {
           canApprove: Boolean(user.canApprove),
           isActive: Boolean(user.isActive),
           roleLabel: getRoleLabel(user.role),
+          isPrivileged: PRIVILEGED_USER_ROLES.includes(user.role),
         };
 
         return {
@@ -46,6 +49,7 @@ const createUsersRouter = (db) => {
             username: user.username,
             role: user.role,
             roleLabel: formattedUser.roleLabel,
+            isPrivileged: formattedUser.isPrivileged,
             canApprove: formattedUser.canApprove,
             isActive: formattedUser.isActive,
             isSelf: user.id === req.currentUser.id,
@@ -154,7 +158,7 @@ const createUsersRouter = (db) => {
       .prepare('SELECT id, role FROM users WHERE id = ?')
       .get(userId);
 
-    if (!user || user.role === 'admin') {
+    if (!user || PRIVILEGED_USER_ROLES.includes(user.role)) {
       throw createHttpError(404, 'Không tìm thấy tài khoản nhân viên.');
     }
 
@@ -182,7 +186,36 @@ const createUsersRouter = (db) => {
       throw createHttpError(400, 'Chức danh nhân viên không hợp lệ.');
     }
 
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
+    if (
+      PRIVILEGED_USER_ROLES.includes(user.role) &&
+      !PRIVILEGED_USER_ROLES.includes(role)
+    ) {
+      const otherPrivilegedUser = db
+        .prepare(
+          `SELECT 1 FROM users
+           WHERE id != ? AND role IN ('admin', 'manager') AND is_active = 1`,
+        )
+        .get(userId);
+
+      if (!otherPrivilegedUser) {
+        throw createHttpError(
+          400,
+          'Phải giữ ít nhất một tài khoản quản trị hoặc quản lý đang hoạt động.',
+        );
+      }
+    }
+
+    if (role === 'manager') {
+      db.prepare(
+        'UPDATE users SET role = ?, can_approve = 1 WHERE id = ?',
+      ).run(role, userId);
+    } else if (user.role === 'manager') {
+      db.prepare(
+        'UPDATE users SET role = ?, can_approve = 0 WHERE id = ?',
+      ).run(role, userId);
+    } else {
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
+    }
 
     setFlash(req, 'success', 'Đã cập nhật chức danh nhân viên.');
     res.redirect('/users');
@@ -204,13 +237,19 @@ const createUsersRouter = (db) => {
 
     const isActive = Boolean(user.is_active);
 
-    if (isActive && user.role === 'admin') {
-      const activeAdminCount = db
-        .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1")
+    if (isActive && PRIVILEGED_USER_ROLES.includes(user.role)) {
+      const activePrivilegedUserCount = db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM users
+           WHERE role IN ('admin', 'manager') AND is_active = 1`,
+        )
         .get().count;
 
-      if (activeAdminCount <= 1) {
-        throw createHttpError(400, 'Không thể khóa tài khoản quản trị viên cuối cùng.');
+      if (activePrivilegedUserCount <= 1) {
+        throw createHttpError(
+          400,
+          'Không thể khóa tài khoản quản trị hoặc quản lý cuối cùng.',
+        );
       }
     }
 
@@ -257,7 +296,7 @@ const readNewUser = (body) => {
   }
 
   return {
-    canApprove: body.canApprove === 'on',
+    canApprove: role === 'manager' || body.canApprove === 'on',
     fullName,
     password,
     role,

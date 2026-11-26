@@ -75,9 +75,8 @@ const createTransactionsRouter = (db) => {
       approvalStatuses: APPROVAL_STATUSES,
       canApproveTransactions:
         req.currentUser.isAdmin || req.currentUser.canApprove,
-      canMarkTransactionsPaid: ['admin', 'accountant'].includes(
-        req.currentUser.role,
-      ),
+      canMarkTransactionsPaid:
+        req.currentUser.isAdmin || req.currentUser.role === 'accountant',
       canDeleteTransactions: req.currentUser.isAdmin,
     });
   });

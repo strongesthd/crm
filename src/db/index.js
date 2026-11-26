@@ -20,7 +20,8 @@ const TRANSACTION_CATEGORIES = [
   'Marketing',
   'Khác',
 ];
-const USER_ROLES = ['accountant', 'cashier'];
+const USER_ROLES = ['accountant', 'cashier', 'manager'];
+const PRIVILEGED_USER_ROLES = ['admin', 'manager'];
 
 const ensureColumn = (db, tableName, columnName, definition) => {
   const columns = db.pragma(`table_info(${tableName})`);
@@ -219,6 +220,7 @@ module.exports = {
   APPROVAL_STATUSES,
   CUSTOMER_STATUSES,
   PAYMENT_STATUSES,
+  PRIVILEGED_USER_ROLES,
   TRANSACTION_CATEGORIES,
   TRANSACTION_TYPES,
   USER_ROLES,
