@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8fafc">
+    <title><%= title %> · CRM Nội bộ</title>
+    <link href="/styles.css" rel="stylesheet">
+    <script src="/tailwind-config.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="flex min-h-screen items-center justify-center bg-slate-50 p-4 font-sans text-slate-800 antialiased">
+    <main class="w-full max-w-2xl rounded-2xl border border-slate-200/80 bg-white px-6 py-12 text-center shadow-sm">
+      <span class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+        <i data-lucide="circle-alert" class="h-6 w-6"></i>
+      </span>
+      <h1 class="text-xl font-semibold text-slate-900"><%= title %></h1>
+      <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500"><%= message %></p>
+      <a href="/login" class="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
+        <i data-lucide="arrow-left" class="h-4 w-4"></i>Quay lại đăng nhập
+      </a>
+    </main>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

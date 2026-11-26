@@ -1,0 +1,42 @@
+<aside id="logo-sidebar" class="fixed left-0 top-0 z-40 h-screen w-64 -translate-x-full border-r border-slate-200/80 bg-white transition-transform md:translate-x-0" aria-label="Điều hướng chính">
+  <div class="flex h-full flex-col px-4 py-5">
+    <a href="/" class="mb-8 flex items-center gap-3 px-2">
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-200">
+        <i data-lucide="layout-dashboard" class="h-5 w-5"></i>
+      </span>
+      <span>
+        <span class="block text-sm font-bold tracking-tight text-slate-900">CRM Nội bộ</span>
+        <span class="block text-xs text-slate-500">Khách hàng & thu chi</span>
+      </span>
+    </a>
+
+    <p class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Không gian làm việc</p>
+    <nav class="space-y-1">
+      <a href="/" class="nav-link <%= activePage === 'dashboard' ? 'nav-link-active' : '' %>">
+        <i data-lucide="layout-dashboard" class="h-5 w-5"></i><span>Tổng quan</span>
+      </a>
+      <a href="/customers" class="nav-link <%= activePage === 'customers' ? 'nav-link-active' : '' %>">
+        <i data-lucide="users" class="h-5 w-5"></i><span>Khách hàng</span>
+      </a>
+      <a href="/transactions" class="nav-link <%= activePage === 'transactions' ? 'nav-link-active' : '' %>">
+        <i data-lucide="arrow-left-right" class="h-5 w-5"></i><span>Sổ thu chi</span>
+      </a>
+    </nav>
+
+    <div class="mt-auto border-t border-slate-100 pt-4">
+      <div class="mb-4 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+        <span class="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"><%= getInitials(currentUser.fullName) %></span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-medium text-slate-800"><%= currentUser.fullName %></span>
+          <span class="block truncate text-xs text-slate-500"><%= currentUser.username %></span>
+        </span>
+      </div>
+      <form method="post" action="/logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="nav-link w-full text-slate-600 hover:bg-rose-50 hover:text-rose-700">
+          <i data-lucide="log-out" class="h-5 w-5"></i><span>Đăng xuất</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

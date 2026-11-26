@@ -1,0 +1,142 @@
+const express = require('express');
+
+const { formatCurrency, formatDate } = require('../utils/format');
+
+const getMonthRange = (year, month) => {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const nextMonth = new Date(year, month, 1);
+  const end = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+
+  return { end, start };
+};
+
+const createDashboardRouter = (db) => {
+  const router = express.Router();
+
+  router.get('/', (req, res) => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const selectedMonth = Number.parseInt(req.query.month, 10);
+    const selectedYear = Number.parseInt(req.query.year, 10);
+    const month =
+      Number.isInteger(selectedMonth) && selectedMonth >= 1 && selectedMonth <= 12
+        ? selectedMonth
+        : now.getMonth() + 1;
+    const year =
+      Number.isInteger(selectedYear) &&
+      selectedYear >= currentYear - 10 &&
+      selectedYear <= currentYear + 1
+        ? selectedYear
+        : currentYear;
+    const { end, start } = getMonthRange(year, month);
+
+    const paidTotals = db
+      .prepare(
+        `SELECT
+          COALESCE(SUM(CASE WHEN type = 'THU' THEN amount ELSE 0 END), 0) AS income,
+          COALESCE(SUM(CASE WHEN type = 'CHI' THEN amount ELSE 0 END), 0) AS expenses
+         FROM transactions
+         WHERE payment_status = 'Đã thanh toán'
+           AND transaction_date >= ? AND transaction_date < ?`,
+      )
+      .get(start, end);
+
+    const outstanding = db
+      .prepare(
+        `SELECT COALESCE(SUM(amount), 0) AS amount
+         FROM transactions
+         WHERE payment_status = 'Công nợ'`,
+      )
+      .get().amount;
+
+    const monthStarts = Array.from({ length: 6 }, (_value, index) => {
+      const date = new Date(year, month - 1 - (5 - index), 1);
+
+      return {
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+        label: new Intl.DateTimeFormat('vi-VN', { month: 'short' }).format(date),
+      };
+    });
+
+    const chartTotals = db
+      .prepare(
+        `SELECT
+          substr(transaction_date, 1, 7) AS month_key,
+          type,
+          SUM(amount) AS total
+         FROM transactions
+         WHERE payment_status = 'Đã thanh toán'
+           AND transaction_date >= ? AND transaction_date < ?
+         GROUP BY month_key, type`,
+      )
+      .all(
+        `${monthStarts[0].key}-01`,
+        (() => {
+          const lastDate = new Date(
+            Number.parseInt(monthStarts[5].key.slice(0, 4), 10),
+            Number.parseInt(monthStarts[5].key.slice(5, 7), 10),
+            1,
+          );
+
+          return `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}-01`;
+        })(),
+      );
+    const chartTotalsByMonth = new Map(
+      monthStarts.map(({ key }) => [key, { income: 0, expenses: 0 }]),
+    );
+
+    for (const total of chartTotals) {
+      const monthTotal = chartTotalsByMonth.get(total.month_key);
+
+      if (monthTotal) {
+        monthTotal[total.type === 'THU' ? 'income' : 'expenses'] = total.total;
+      }
+    }
+
+    const recentTransactions = db
+      .prepare(
+        `SELECT t.*, c.name AS customer_name
+         FROM transactions t
+         LEFT JOIN customers c ON c.id = t.customer_id
+         ORDER BY t.transaction_date DESC, t.id DESC
+         LIMIT 5`,
+      )
+      .all()
+      .map((transaction) => ({
+        ...transaction,
+        formattedAmount: formatCurrency(transaction.amount),
+        formattedDate: formatDate(transaction.transaction_date),
+      }));
+
+    res.render('dashboard', {
+      title: 'Tổng quan',
+      activePage: 'dashboard',
+      selectedMonth: month,
+      selectedYear: year,
+      years: Array.from(
+        { length: 5 },
+        (_value, index) => currentYear - 2 + index,
+      ),
+      totals: {
+        income: paidTotals.income,
+        expenses: paidTotals.expenses,
+        profit: paidTotals.income - paidTotals.expenses,
+        outstanding,
+      },
+      chartData: {
+        labels: monthStarts.map(({ label }) => label),
+        income: monthStarts.map(
+          ({ key }) => chartTotalsByMonth.get(key).income,
+        ),
+        expenses: monthStarts.map(
+          ({ key }) => chartTotalsByMonth.get(key).expenses,
+        ),
+      },
+      recentTransactions,
+    });
+  });
+
+  return router;
+};
+
+module.exports = createDashboardRouter;

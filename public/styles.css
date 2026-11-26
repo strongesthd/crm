@@ -1,0 +1,180 @@
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+}
+
+body {
+  min-width: 320px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.nav-link:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.nav-link-active,
+.nav-link-active:hover {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.panel-card {
+  border: 1px solid rgb(226 232 240 / 80%);
+  border-radius: 16px;
+  background: #fff;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.kpi-card {
+  border: 1px solid rgb(226 232 240 / 80%);
+  border-radius: 16px;
+  background: #fff;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.kpi-icon {
+  display: flex;
+  height: 40px;
+  width: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.data-table thead {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
+
+.data-table th {
+  padding: 12px 14px;
+  white-space: nowrap;
+}
+
+.data-table td {
+  border-top: 1px solid #f1f5f9;
+  padding: 13px 14px;
+  color: #475569;
+}
+
+.data-table tbody tr:hover {
+  background: #fafbff;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.badge-paid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.badge-debt {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.badge-info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.badge-neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.icon-button {
+  display: inline-flex;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: #64748b;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.icon-button:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-input {
+  display: block;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 10px 12px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.form-input:focus {
+  border-color: #6366f1;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 15%);
+}
+
+.swal2-popup {
+  border-radius: 16px !important;
+  font-family: Inter, sans-serif !important;
+}
+
+@media (max-width: 640px) {
+  .panel-card {
+    padding: 16px;
+  }
+
+  .kpi-card {
+    padding: 16px;
+  }
+}

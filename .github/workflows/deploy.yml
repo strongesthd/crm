@@ -1,4 +1,4 @@
-name: Deploy CRM production
+name: Deploy CRM
 
 on:
   push:
@@ -20,6 +20,17 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Test app
+        run: |
+          npm ci
+          npm test
+
       - name: Validate deploy secrets
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -33,32 +44,15 @@ jobs:
           test -n "$VPS_SSH_KEY" || { echo 'Missing secret: VPS_SSH_KEY'; exit 1; }
           test -n "$VPS_SSH_PORT" || { echo 'Missing secret: VPS_SSH_PORT'; exit 1; }
 
-      - name: Prepare deploy package
+      - name: Prepare app package
         run: |
           set -euo pipefail
-          mkdir -p deploy_dist
-          rsync -a \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude '.claude/' \
-            --exclude '.cursor/' \
-            --exclude 'node_modules/' \
-            --exclude '**/node_modules/' \
-            --exclude '**/.env' \
-            --exclude 'packages/twenty-front/build/' \
-            --exclude 'packages/twenty-server/dist/' \
-            --exclude 'packages/twenty-shared/dist/' \
-            --exclude 'packages/twenty-emails/dist/' \
-            --exclude 'packages/twenty-client-sdk/dist/' \
-            --exclude 'packages/twenty-sdk/dist/' \
-            --exclude 'packages/twenty-ui/storybook-static/' \
-            --exclude 'deploy_dist/' \
-            --exclude '*.log' \
-            ./ deploy_dist/
+          mkdir deploy_dist
+          cp -a Dockerfile docker-compose.yml .env.example package.json package-lock.json README.md deploy_dist/
+          cp -a src public deploy_dist/
           tar -C deploy_dist -czf crm-deploy.tgz .
-          ls -lh crm-deploy.tgz
 
-      - name: Upload package to VPS
+      - name: Upload app package to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -72,7 +66,7 @@ jobs:
           timeout: 120s
           command_timeout: 10m
 
-      - name: Deploy and verify
+      - name: Replace Twenty and deploy CRM
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -80,7 +74,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT }}
           script_stop: true
-          command_timeout: 45m
+          command_timeout: 20m
           script: |
             set -Eeuo pipefail
 
@@ -91,71 +85,65 @@ jobs:
               PACKAGE="$UPLOAD_DIR/crm-deploy.tgz/crm-deploy.tgz"
             fi
             test -f "$PACKAGE"
-
-            mkdir -p "$APP_DIR"
             test -f "$APP_DIR/.env" || {
-              echo "Missing required runtime file: $APP_DIR/.env"
+              echo "Missing $APP_DIR/.env; add ADMIN_USER, ADMIN_PASS, and SESSION_SECRET."
               exit 1
             }
 
-            BACKUP_DIR=$(mktemp -d /tmp/crm-deploy.XXXXXX)
-            cp "$APP_DIR/.env" "$BACKUP_DIR/.env"
-
-            find "$APP_DIR" -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
-            tar -xzf "$PACKAGE" -C "$APP_DIR"
-            cp "$BACKUP_DIR/.env" "$APP_DIR/.env"
-            rm -rf "$BACKUP_DIR"
-
-            cd "$APP_DIR/packages/twenty-docker"
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              build server
-
-            # Run database initialization before starting the application. This avoids
-            # leaving a partially initialized database if the server is interrupted.
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              up -d db redis
-            for attempt in $(seq 1 30); do
-              if docker compose --env-file "$APP_DIR/.env" \
-                -f docker-compose.yml \
-                -f docker-compose.prod.yml \
-                exec -T db pg_isready >/dev/null 2>&1; then
-                break
-              fi
-              if [ "$attempt" = 30 ]; then
-                echo 'Database did not become ready'
+            for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
+              grep -q "^${variable}=." "$APP_DIR/.env" || {
+                echo "Missing $variable in $APP_DIR/.env."
                 exit 1
-              fi
-              sleep 2
+              }
             done
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              run --rm --no-deps --entrypoint sh server \
-              -lc 'cd /app/packages/twenty-server && yarn database:init:prod'
 
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml \
-              up -d --force-recreate --remove-orphans server worker
+            LEGACY_DIR="$APP_DIR/packages/twenty-docker"
+            if [ -f "$LEGACY_DIR/docker-compose.yml" ] \
+              && [ -f "$LEGACY_DIR/docker-compose.prod.yml" ]; then
+              cd "$LEGACY_DIR"
+              docker compose \
+                --env-file "$APP_DIR/.env" \
+                -f docker-compose.yml \
+                -f docker-compose.prod.yml down
+            fi
+
+            mkdir -p "$APP_DIR/data"
+            chmod 700 "$APP_DIR"
+            chmod 600 "$APP_DIR/.env"
+            chown -R 1000:1000 "$APP_DIR/data"
+
+            find "$APP_DIR" -mindepth 1 -maxdepth 1 \
+              ! -name '.env' ! -name '.git' ! -name 'data' \
+              -exec rm -rf {} +
+            tar -xzf "$PACKAGE" -C "$APP_DIR" --no-same-owner
+            chown -R 1000:1000 "$APP_DIR/data"
+
+            cd "$APP_DIR"
+            docker compose --project-name internal-crm-finance \
+              --env-file "$APP_DIR/.env" \
+              -f "$APP_DIR/docker-compose.yml" config -q
+            docker compose --project-name internal-crm-finance \
+              --env-file "$APP_DIR/.env" \
+              -f "$APP_DIR/docker-compose.yml" build app
+            docker compose --project-name internal-crm-finance \
+              --env-file "$APP_DIR/.env" \
+              -f "$APP_DIR/docker-compose.yml" \
+              up -d --force-recreate --remove-orphans
 
             for attempt in $(seq 1 40); do
-              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:3002/healthz >/dev/null; then
+              if curl --fail --silent --show-error --max-time 5 \
+                http://127.0.0.1:3002/healthz >/dev/null; then
                 rm -rf "$UPLOAD_DIR"
-                docker image prune -f
                 echo 'Deploy done'
                 exit 0
               fi
               sleep 5
             done
 
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml ps
-            docker compose --env-file "$APP_DIR/.env" \
-              -f docker-compose.yml \
-              -f docker-compose.prod.yml logs --tail 150 server worker || true
+            docker compose --project-name internal-crm-finance \
+              --env-file "$APP_DIR/.env" \
+              -f "$APP_DIR/docker-compose.yml" ps
+            docker compose --project-name internal-crm-finance \
+              --env-file "$APP_DIR/.env" \
+              -f "$APP_DIR/docker-compose.yml" logs --tail 150 app || true
             exit 1

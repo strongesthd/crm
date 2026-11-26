@@ -1,0 +1,120 @@
+<%- include('partials/app-shell-start') %>
+<div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">Khách hàng</h1>
+    <p class="mt-1 text-sm text-slate-500">Quản lý thông tin và theo dõi lịch sử giao dịch của khách hàng.</p>
+  </div>
+  <button type="button" data-modal-target="customer-modal" data-modal-toggle="customer-modal" data-customer-create class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+    <i data-lucide="plus" class="h-4 w-4"></i>Thêm khách hàng
+  </button>
+</div>
+
+<section class="mb-5 flex flex-wrap gap-2">
+  <% const statusTabs = [{ value: '', label: 'Tất cả' }, ...customerStatuses.map((status) => ({ value: status, label: status }))]; %>
+  <% statusTabs.forEach((tab) => { %>
+    <a href="/customers?<%= new URLSearchParams({ ...(search ? { q: search } : {}), ...(tab.value ? { status: tab.value } : {}) }).toString() %>" class="rounded-full border px-3.5 py-2 text-sm font-medium transition <%= selectedStatus === tab.value ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' %>">
+      <%= tab.label %>
+      <% if (tab.value) { %><span class="ml-1 text-xs opacity-70"><%= statusCounts[tab.value] || 0 %></span><% } %>
+    </a>
+  <% }) %>
+</section>
+
+<section class="panel-card">
+  <form method="get" action="/customers" class="mb-5 flex flex-col gap-3 sm:flex-row">
+    <% if (selectedStatus) { %><input type="hidden" name="status" value="<%= selectedStatus %>"><% } %>
+    <label class="relative block flex-1">
+      <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+      <input type="search" name="q" value="<%= search %>" placeholder="Tìm theo tên hoặc số điện thoại..." class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm focus:border-indigo-500 focus:ring-indigo-500">
+    </label>
+    <button type="submit" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Tìm kiếm</button>
+  </form>
+
+  <% if (customers.length === 0) { %>
+    <%- include('partials/empty-state', { icon: 'users', title: 'Chưa có khách hàng phù hợp', description: 'Thử thay đổi từ khóa hoặc thêm khách hàng mới.' }) %>
+  <% } else { %>
+    <div class="overflow-x-auto">
+      <table class="data-table min-w-[850px]">
+        <thead><tr>
+          <th>Khách hàng</th><th>Trạng thái</th><th>Đã thu</th><th>Công nợ</th><th>Ngày tạo</th><th class="text-right">Thao tác</th>
+        </tr></thead>
+        <tbody>
+          <% customers.forEach((customer, index) => { %>
+            <tr>
+              <td>
+                <div class="flex items-center gap-3">
+                  <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full <%= ['bg-indigo-100 text-indigo-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-sky-100 text-sky-700', 'bg-violet-100 text-violet-700'][index % 5] %> text-xs font-bold"><%= customer.initials %></span>
+                  <span class="min-w-0">
+                    <span class="block truncate font-semibold text-slate-800"><%= customer.name %></span>
+                    <span class="mt-0.5 block truncate text-xs text-slate-500"><%= customer.phone || customer.email || 'Chưa có thông tin liên hệ' %></span>
+                  </span>
+                </div>
+              </td>
+              <td><span class="badge <%= customer.status === 'Đã chốt' ? 'badge-paid' : customer.status === 'Tạm dừng' ? 'badge-neutral' : customer.status === 'Đang chăm sóc' ? 'badge-info' : 'badge-debt' %>"><%= customer.status %></span></td>
+              <td class="whitespace-nowrap font-medium text-slate-700"><%= customer.formattedPaidIncome %></td>
+              <td class="whitespace-nowrap font-medium <%= customer.outstanding > 0 ? 'text-amber-700' : 'text-slate-500' %>"><%= customer.formattedOutstanding %></td>
+              <td class="whitespace-nowrap text-slate-500"><%= formatDate(customer.created_at.slice(0, 10)) %></td>
+              <td>
+                <div class="flex justify-end gap-1">
+                  <button type="button" data-customer-details="<%= customer.id %>" class="icon-button" aria-label="Xem chi tiết <%= customer.name %>" title="Chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
+                  <button type="button" data-customer-edit="<%= customer.detailsJson %>" data-modal-target="customer-modal" data-modal-toggle="customer-modal" class="icon-button" aria-label="Sửa <%= customer.name %>" title="Chỉnh sửa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
+                  <form method="post" action="/customers/<%= customer.id %>/delete" data-confirm-delete data-confirm-message="Xóa khách hàng này? Các giao dịch đã liên kết vẫn được giữ lại.">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="icon-button text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Xóa <%= customer.name %>" title="Xóa"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-4 text-xs text-slate-400">Đang hiển thị <%= customers.length %> khách hàng</p>
+  <% } %>
+</section>
+
+<div id="customer-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="customer-modal-title" class="text-lg font-semibold text-slate-900">Thêm khách hàng</h3><p class="mt-1 text-sm text-slate-500">Điền thông tin liên hệ và trạng thái chăm sóc.</p></div>
+        <button type="button" data-modal-hide="customer-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <form id="customer-form" method="post" action="/customers" class="space-y-4 p-6">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div>
+          <label for="customer-name" class="form-label">Tên khách hàng / doanh nghiệp <span class="text-rose-500">*</span></label>
+          <input id="customer-name" name="name" required maxlength="160" class="form-input" placeholder="Ví dụ: Công ty ABC">
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div><label for="customer-phone" class="form-label">Số điện thoại</label><input id="customer-phone" name="phone" maxlength="40" class="form-input" placeholder="09xx xxx xxx"></div>
+          <div><label for="customer-email" class="form-label">Email</label><input id="customer-email" name="email" type="email" maxlength="254" class="form-input" placeholder="email@congty.vn"></div>
+        </div>
+        <div><label for="customer-status" class="form-label">Trạng thái</label>
+          <select id="customer-status" name="status" class="form-input">
+            <% customerStatuses.forEach((status) => { %><option value="<%= status %>"><%= status %></option><% }) %>
+          </select>
+        </div>
+        <div><label for="customer-notes" class="form-label">Ghi chú</label><textarea id="customer-notes" name="notes" rows="3" maxlength="5000" class="form-input" placeholder="Thông tin cần lưu ý về khách hàng..."></textarea></div>
+        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" data-modal-hide="customer-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
+          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu khách hàng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="customer-details-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-3xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="customer-details-name" class="text-lg font-semibold text-slate-900">Chi tiết khách hàng</h3><p id="customer-details-contact" class="mt-1 text-sm text-slate-500"></p></div>
+        <button type="button" data-modal-hide="customer-details-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div id="customer-details-content" class="max-h-[70vh] overflow-y-auto p-6">
+        <div class="py-12 text-center text-sm text-slate-500">Đang tải thông tin...</div>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('partials/app-shell-end') %>
