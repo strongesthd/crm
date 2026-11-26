@@ -257,7 +257,6 @@ test('enforces staff permissions and the transaction approval workflow', async (
       username: 'cashier01',
       password: cashierPassword,
       role: 'cashier',
-      canApprove: 'on',
     },
   );
 
@@ -291,6 +290,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
   assert.match(usersHtml, /id="user-create-modal"/);
   assert.match(usersHtml, /data-user-open="/);
   assert.match(usersHtml, /id="user-action-modal"/);
+  assert.doesNotMatch(usersHtml, /Quyền duyệt phiếu|Lưu quyền|canApprove/);
   assert.doesNotMatch(
     usersHtml,
     /name="fullName" value="Nhân viên kế toán"/,
@@ -390,12 +390,19 @@ test('enforces staff permissions and the transaction approval workflow', async (
     accountantId,
   );
 
+  const adminApprovalResponse = await postForm(
+    baseUrl,
+    `/transactions/${pendingTransaction.id}/approve`,
+    adminCookie,
+    adminCsrfToken,
+  );
   const accountantApprovalResponse = await postForm(
     baseUrl,
     `/transactions/${pendingTransaction.id}/approve`,
     accountantCookie,
     accountantCsrfToken,
   );
+  assert.equal(adminApprovalResponse.status, 403);
   assert.equal(accountantApprovalResponse.status, 403);
 
   const cashierCookie = await login(baseUrl, 'cashier01', cashierPassword);
@@ -419,6 +426,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
     cashierTransactionsHtml,
     /data-modal-toggle="transaction-details-modal"/,
   );
+  assert.doesNotMatch(cashierTransactionsHtml, /title="Duyệt phiếu"/);
   assert.doesNotMatch(
     cashierTransactionsHtml,
     new RegExp(`aria-label="Sửa phiếu #${pendingTransaction.id}"`),
@@ -510,7 +518,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
     new RegExp(`aria-label="Sửa phiếu #${selfApproveTransaction.id}"`),
   );
   assert.equal(editOwnPendingResponse.status, 302);
-  assert.equal(selfApproveResponse.status, 302);
+  assert.equal(selfApproveResponse.status, 403);
   assert.deepEqual(
     db
       .prepare(
@@ -518,33 +526,36 @@ test('enforces staff permissions and the transaction approval workflow', async (
       )
       .get(selfApproveTransaction.id),
     {
-      approval_status: 'APPROVED',
-      reviewed_by: db
-        .prepare("SELECT id FROM users WHERE username = 'cashier01'")
-        .get().id,
+      approval_status: 'PENDING',
+      reviewed_by: null,
     },
   );
 
-  const editOwnApprovedResponse = await postForm(
+  const editOwnPendingResponseAgain = await postForm(
     baseUrl,
     `/transactions/${selfApproveTransaction.id}`,
     cashierCookie,
     cashierCsrfToken,
     { ...selfApproveFields, amount: '7890' },
   );
-  const reapproveOwnEditedResponse = await postForm(
+  const approveOwnEditedResponse = await postForm(
     baseUrl,
     `/transactions/${selfApproveTransaction.id}/approve`,
     cashierCookie,
     cashierCsrfToken,
   );
 
-  assert.equal(editOwnApprovedResponse.status, 302);
-  assert.equal(reapproveOwnEditedResponse.status, 302);
+  assert.equal(editOwnPendingResponseAgain.status, 302);
+  assert.equal(approveOwnEditedResponse.status, 403);
   assert.equal(
     db.prepare('SELECT amount FROM transactions WHERE id = ?')
       .get(selfApproveTransaction.id).amount,
     7890,
+  );
+  assert.equal(
+    db.prepare('SELECT approval_status FROM transactions WHERE id = ?')
+      .get(selfApproveTransaction.id).approval_status,
+    'PENDING',
   );
 
   const rejectedFields = {
@@ -576,8 +587,8 @@ test('enforces staff permissions and the transaction approval workflow', async (
     { reason: 'Thiếu chứng từ' },
   );
 
-  assert.equal(missingReasonResponse.status, 400);
-  assert.equal(rejectResponse.status, 302);
+  assert.equal(missingReasonResponse.status, 403);
+  assert.equal(rejectResponse.status, 403);
   assert.deepEqual(
     db
       .prepare(
@@ -586,8 +597,8 @@ test('enforces staff permissions and the transaction approval workflow', async (
       )
       .get(rejectedTransaction.id),
     {
-      approval_status: 'REJECTED',
-      rejection_reason: 'Thiếu chứng từ',
+      approval_status: 'PENDING',
+      rejection_reason: '',
     },
   );
 
@@ -603,18 +614,7 @@ test('enforces staff permissions and the transaction approval workflow', async (
 
   assert.equal(dashboardResponse.status, 200);
   assert.ok(incomeMetric);
-  assert.equal(incomeMetric[1], '15.007.890 ₫');
-
-  const rejectedCsvResponse = await fetch(
-    `${baseUrl}/transactions/export.csv?approvalStatus=REJECTED`,
-    { headers: { cookie: accountantCookie } },
-  );
-  const rejectedCsv = await rejectedCsvResponse.text();
-
-  assert.equal(rejectedCsvResponse.status, 200);
-  assert.match(rejectedCsv, /"Từ chối"/);
-  assert.match(rejectedCsv, /"Phiếu bị từ chối"/);
-  assert.doesNotMatch(rejectedCsv, /"Phiếu tự duyệt"/);
+  assert.equal(incomeMetric[1], '15.000.000 ₫');
 
   const accountPageResponse = await fetch(`${baseUrl}/account`, {
     headers: { cookie: accountantCookie },
@@ -703,10 +703,10 @@ test('grants managers administrator-level permissions', async (context) => {
   );
 
   assert.equal(createManagerResponse.status, 302);
-  assert.deepEqual(
-    db.prepare('SELECT role, can_approve FROM users WHERE username = ?')
-      .get('manager01'),
-    { role: 'manager', can_approve: 1 },
+  assert.equal(
+    db.prepare('SELECT role FROM users WHERE username = ?')
+      .get('manager01').role,
+    'manager',
   );
 
   const managerCookie = await login(
@@ -780,16 +780,29 @@ test('grants managers administrator-level permissions', async (context) => {
 
   assert.equal(createCashierResponse.status, 302);
   assert.equal(promoteCashierResponse.status, 302);
-  assert.deepEqual(
-    db.prepare('SELECT role, can_approve FROM users WHERE id = ?')
-      .get(cashierId),
-    { role: 'manager', can_approve: 1 },
+  assert.equal(
+    db.prepare('SELECT role FROM users WHERE id = ?').get(cashierId).role,
+    'manager',
   );
   assert.equal(createCustomerResponse.status, 302);
   assert.equal(createTransactionResponse.status, 302);
   assert.ok(transaction);
   assert.equal(transaction.approval_status, 'PENDING');
 
+  const adminApprovalResponse = await postForm(
+    baseUrl,
+    `/transactions/${transaction.id}/approve`,
+    adminCookie,
+    adminCsrfToken,
+  );
+  const adminTransactionsPage = await fetch(`${baseUrl}/transactions`, {
+    headers: { cookie: adminCookie },
+  });
+  const adminTransactionsHtml = await adminTransactionsPage.text();
+  const managerTransactionsPage = await fetch(`${baseUrl}/transactions`, {
+    headers: { cookie: managerCookie },
+  });
+  const managerTransactionsHtml = await managerTransactionsPage.text();
   const approveResponse = await postForm(
     baseUrl,
     `/transactions/${transaction.id}/approve`,
@@ -803,12 +816,66 @@ test('grants managers administrator-level permissions', async (context) => {
     managerCsrfToken,
   );
 
+  assert.equal(adminApprovalResponse.status, 403);
+  assert.doesNotMatch(adminTransactionsHtml, /title="Duyệt phiếu"/);
+  assert.match(managerTransactionsHtml, /title="Duyệt phiếu"/);
   assert.equal(approveResponse.status, 302);
   assert.equal(deleteResponse.status, 302);
   assert.equal(
     db.prepare('SELECT 1 FROM transactions WHERE id = ?').get(transaction.id),
     undefined,
   );
+
+  const rejectedFields = {
+    ...transactionFields,
+    description: 'Phiếu do quản lý từ chối',
+  };
+  await postForm(
+    baseUrl,
+    '/transactions',
+    managerCookie,
+    managerCsrfToken,
+    rejectedFields,
+  );
+  const rejectedTransaction = db
+    .prepare('SELECT id FROM transactions WHERE description = ?')
+    .get(rejectedFields.description);
+  const missingReasonResponse = await postForm(
+    baseUrl,
+    `/transactions/${rejectedTransaction.id}/reject`,
+    managerCookie,
+    managerCsrfToken,
+  );
+  const rejectResponse = await postForm(
+    baseUrl,
+    `/transactions/${rejectedTransaction.id}/reject`,
+    managerCookie,
+    managerCsrfToken,
+    { reason: 'Thiếu chứng từ' },
+  );
+  const rejectedCsvResponse = await fetch(
+    `${baseUrl}/transactions/export.csv?approvalStatus=REJECTED`,
+    { headers: { cookie: managerCookie } },
+  );
+  const rejectedCsv = await rejectedCsvResponse.text();
+
+  assert.equal(missingReasonResponse.status, 400);
+  assert.equal(rejectResponse.status, 302);
+  assert.deepEqual(
+    db
+      .prepare(
+        `SELECT approval_status, rejection_reason
+         FROM transactions WHERE id = ?`,
+      )
+      .get(rejectedTransaction.id),
+    {
+      approval_status: 'REJECTED',
+      rejection_reason: 'Thiếu chứng từ',
+    },
+  );
+  assert.equal(rejectedCsvResponse.status, 200);
+  assert.match(rejectedCsv, /"Từ chối"/);
+  assert.match(rejectedCsv, /"Phiếu do quản lý từ chối"/);
 });
 
 test('migrates existing users and transactions without losing records', () => {
@@ -868,7 +935,7 @@ test('migrates existing users and transactions without losing records', () => {
     assert.deepEqual(
       migratedDb
         .prepare(
-          `SELECT u.role, u.can_approve, t.approval_status, t.amount,
+          `SELECT u.role, t.approval_status, t.amount,
             c.name AS customer_name
            FROM users u
            JOIN transactions t ON t.customer_id = 1
@@ -877,7 +944,6 @@ test('migrates existing users and transactions without losing records', () => {
         .get(),
       {
         role: 'admin',
-        can_approve: 1,
         approval_status: 'APPROVED',
         amount: 2000,
         customer_name: 'Khách hàng cũ',

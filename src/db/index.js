@@ -49,7 +49,6 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       password_hash TEXT NOT NULL,
       full_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'admin',
-      can_approve INTEGER NOT NULL DEFAULT 1,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -102,7 +101,6 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
   `);
 
   ensureColumn(db, 'users', 'role', "TEXT NOT NULL DEFAULT 'admin'");
-  ensureColumn(db, 'users', 'can_approve', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn(db, 'users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
   ensureColumn(
     db,
@@ -141,14 +139,14 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
     if (userCount === 0) {
       db.prepare(
         `INSERT INTO users
-          (username, password_hash, full_name, role, can_approve, is_active)
-         VALUES (?, ?, ?, 'admin', 1, 1)`,
+          (username, password_hash, full_name, role, is_active)
+         VALUES (?, ?, ?, 'admin', 1)`,
       ).run(adminUser, bcrypt.hashSync(adminPass, 12), 'Quản trị viên');
     }
 
     db.prepare(
       `UPDATE users
-       SET role = 'admin', can_approve = 1
+       SET role = 'admin'
        WHERE username = ? COLLATE NOCASE`,
     ).run(adminUser);
 

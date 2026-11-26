@@ -2,7 +2,7 @@
 <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">Người dùng</h1>
-    <p class="mt-1 text-sm text-slate-500">Quản lý nhân viên, chức danh và quyền sử dụng.</p>
+    <p class="mt-1 text-sm text-slate-500">Quản lý nhân viên và chức danh. Chỉ Quản lý mới được duyệt phiếu thu chi.</p>
   </div>
   <button type="button" data-modal-target="user-create-modal" data-modal-toggle="user-create-modal" class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
     <i data-lucide="plus" class="h-4 w-4"></i>Tạo người dùng
@@ -18,8 +18,8 @@
     <%- include('partials/empty-state', { icon: 'users', title: 'Chưa có tài khoản', description: 'Tạo tài khoản nhân viên để bắt đầu quản lý.' }) %>
   <% } else { %>
     <div class="overflow-x-auto">
-      <table class="data-table min-w-[800px]">
-        <thead><tr><th>Nhân viên</th><th>Chức danh</th><th>Trạng thái</th><th>Quyền duyệt</th><th class="text-right">Quản lý</th></tr></thead>
+      <table class="data-table min-w-[700px]">
+        <thead><tr><th>Nhân viên</th><th>Chức danh</th><th>Trạng thái</th><th class="text-right">Quản lý</th></tr></thead>
         <tbody>
           <% users.forEach((user) => { %>
             <tr>
@@ -34,13 +34,6 @@
               </td>
               <td><span class="badge <%= user.isPrivileged ? 'badge-info' : 'badge-neutral' %>"><%= user.roleLabel %></span></td>
               <td><span class="badge <%= user.isActive ? 'badge-paid' : 'badge-neutral' %>"><%= user.isActive ? 'Đang hoạt động' : 'Đã khóa' %></span></td>
-              <td>
-                <% if (user.isPrivileged) { %>
-                  <span class="text-sm font-medium text-emerald-700">Luôn được duyệt</span>
-                <% } else { %>
-                  <span class="text-sm text-slate-600"><%= user.canApprove ? 'Được duyệt' : 'Không có quyền' %></span>
-                <% } %>
-              </td>
               <td class="text-right">
                 <button type="button" data-user-open="<%= user.detailsJson %>" data-modal-target="user-action-modal" data-modal-toggle="user-action-modal" class="icon-button" aria-label="Quản lý <%= user.fullName %>" title="Quản lý người dùng"><i data-lucide="ellipsis" class="h-4 w-4"></i></button>
               </td>
@@ -82,10 +75,6 @@
             <% userRoles.forEach((role) => { %><option value="<%= role.value %>"><%= role.label %></option><% }) %>
           </select>
         </div>
-        <label id="user-create-approval-option" class="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" name="canApprove" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-          Có quyền duyệt phiếu
-        </label>
         <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button type="button" data-modal-hide="user-create-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
           <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Tạo tài khoản</button>
@@ -141,23 +130,6 @@
               <% userRoles.forEach((role) => { %><option value="<%= role.value %>"><%= role.label %></option><% }) %>
             </select>
             <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Lưu chức danh</button>
-          </div>
-        </form>
-
-        <form id="user-approval-form" method="post" action="#" class="hidden border-t border-slate-100 pt-5">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <label class="flex items-center justify-between gap-4">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Quyền duyệt phiếu</span>
-              <span class="mt-1 block text-xs text-slate-500">Cho phép nhân viên duyệt hoặc từ chối phiếu.</span>
-            </span>
-            <span class="flex shrink-0 items-center gap-2">
-              <input id="user-edit-can-approve" type="checkbox" name="canApprove" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-              <span class="text-sm text-slate-600">Được duyệt</span>
-            </span>
-          </label>
-          <div class="mt-3 flex justify-end">
-            <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Lưu quyền</button>
           </div>
         </form>
 

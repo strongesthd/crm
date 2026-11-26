@@ -12,7 +12,7 @@ const requireAuthentication = (db) => (req, res, next) => {
   const user = db
     .prepare(
       `SELECT id, username, full_name AS fullName, role,
-        can_approve AS canApprove, is_active AS isActive
+        is_active AS isActive
        FROM users
        WHERE id = ?`,
     )
@@ -35,7 +35,6 @@ const requireAuthentication = (db) => (req, res, next) => {
 
   req.currentUser = {
     ...user,
-    canApprove: Boolean(user.canApprove),
     isAdmin: PRIVILEGED_USER_ROLES.includes(user.role),
   };
   req.session.user = {
@@ -65,20 +64,7 @@ const requireRoles = (...roles) => (req, res, next) => {
   next();
 };
 
-const requireApprovalPermission = (req, res, next) => {
-  if (!req.currentUser?.isAdmin && !req.currentUser?.canApprove) {
-    next(Object.assign(new Error('Bạn không có quyền duyệt phiếu.'), {
-      status: 403,
-    }));
-
-    return;
-  }
-
-  next();
-};
-
 module.exports = {
-  requireApprovalPermission,
   requireAuthentication,
   requireRoles,
 };

@@ -26,7 +26,7 @@ const createUsersRouter = (db) => {
     const users = db
       .prepare(
         `SELECT id, username, full_name AS fullName, role,
-          can_approve AS canApprove, is_active AS isActive, created_at AS createdAt
+          is_active AS isActive, created_at AS createdAt
          FROM users
          ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,
           full_name COLLATE NOCASE`,
@@ -35,7 +35,6 @@ const createUsersRouter = (db) => {
       .map((user) => {
         const formattedUser = {
           ...user,
-          canApprove: Boolean(user.canApprove),
           isActive: Boolean(user.isActive),
           roleLabel: getRoleLabel(user.role),
           isPrivileged: PRIVILEGED_USER_ROLES.includes(user.role),
@@ -49,8 +48,6 @@ const createUsersRouter = (db) => {
             username: user.username,
             role: user.role,
             roleLabel: formattedUser.roleLabel,
-            isPrivileged: formattedUser.isPrivileged,
-            canApprove: formattedUser.canApprove,
             isActive: formattedUser.isActive,
             isSelf: user.id === req.currentUser.id,
           }),
@@ -78,14 +75,13 @@ const createUsersRouter = (db) => {
     try {
       db.prepare(
         `INSERT INTO users
-          (username, password_hash, full_name, role, can_approve, is_active)
-         VALUES (?, ?, ?, ?, ?, 1)`,
+          (username, password_hash, full_name, role, is_active)
+         VALUES (?, ?, ?, ?, 1)`,
       ).run(
         user.username,
         bcrypt.hashSync(user.password, 12),
         user.fullName,
         user.role,
-        user.canApprove ? 1 : 0,
       );
     } catch (error) {
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
@@ -152,25 +148,6 @@ const createUsersRouter = (db) => {
     res.redirect('/users');
   });
 
-  router.post('/:id/approval-permission', (req, res) => {
-    const userId = parseRecordId(req.params.id);
-    const user = db
-      .prepare('SELECT id, role FROM users WHERE id = ?')
-      .get(userId);
-
-    if (!user || PRIVILEGED_USER_ROLES.includes(user.role)) {
-      throw createHttpError(404, 'Không tìm thấy tài khoản nhân viên.');
-    }
-
-    db.prepare('UPDATE users SET can_approve = ? WHERE id = ?').run(
-      req.body.canApprove === 'on' ? 1 : 0,
-      userId,
-    );
-
-    setFlash(req, 'success', 'Đã cập nhật quyền duyệt phiếu.');
-    res.redirect('/users');
-  });
-
   router.post('/:id/role', (req, res) => {
     const userId = parseRecordId(req.params.id);
     const user = db
@@ -205,17 +182,7 @@ const createUsersRouter = (db) => {
       }
     }
 
-    if (role === 'manager') {
-      db.prepare(
-        'UPDATE users SET role = ?, can_approve = 1 WHERE id = ?',
-      ).run(role, userId);
-    } else if (user.role === 'manager') {
-      db.prepare(
-        'UPDATE users SET role = ?, can_approve = 0 WHERE id = ?',
-      ).run(role, userId);
-    } else {
-      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
-    }
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
 
     setFlash(req, 'success', 'Đã cập nhật chức danh nhân viên.');
     res.redirect('/users');
@@ -296,7 +263,6 @@ const readNewUser = (body) => {
   }
 
   return {
-    canApprove: role === 'manager' || body.canApprove === 'on',
     fullName,
     password,
     role,

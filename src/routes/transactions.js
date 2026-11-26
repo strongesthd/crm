@@ -6,10 +6,7 @@ const {
   TRANSACTION_CATEGORIES,
   TRANSACTION_TYPES,
 } = require('../db');
-const {
-  requireApprovalPermission,
-  requireRoles,
-} = require('../middleware/auth');
+const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate } = require('../utils/format');
 
@@ -73,8 +70,7 @@ const createTransactionsRouter = (db) => {
       paymentStatuses: PAYMENT_STATUSES,
       categories: TRANSACTION_CATEGORIES,
       approvalStatuses: APPROVAL_STATUSES,
-      canApproveTransactions:
-        req.currentUser.isAdmin || req.currentUser.canApprove,
+      canApproveTransactions: req.currentUser.role === 'manager',
       canMarkTransactionsPaid:
         req.currentUser.isAdmin || req.currentUser.role === 'accountant',
       canDeleteTransactions: req.currentUser.isAdmin,
@@ -200,7 +196,7 @@ const createTransactionsRouter = (db) => {
 
   router.post(
     '/:id/approve',
-    requireApprovalPermission,
+    requireRoles('manager'),
     (req, res) => {
       const transactionId = parseRecordId(req.params.id);
       const result = db
@@ -222,7 +218,7 @@ const createTransactionsRouter = (db) => {
 
   router.post(
     '/:id/reject',
-    requireApprovalPermission,
+    requireRoles('manager'),
     (req, res) => {
       const transactionId = parseRecordId(req.params.id);
       const reason =

@@ -52,7 +52,7 @@ const createDashboardRouter = (db) => {
       .get().amount;
 
     const pendingApprovalCount =
-      req.currentUser.isAdmin || req.currentUser.canApprove
+      req.currentUser.role === 'manager'
         ? db
             .prepare(
               "SELECT COUNT(*) AS count FROM transactions WHERE approval_status = 'PENDING'",
@@ -145,8 +145,7 @@ const createDashboardRouter = (db) => {
         ),
       },
       recentTransactions,
-      canApproveTransactions:
-        req.currentUser.isAdmin || req.currentUser.canApprove,
+      canApproveTransactions: req.currentUser.role === 'manager',
       pendingApprovalCount,
     });
   });
