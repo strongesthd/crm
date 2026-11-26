@@ -112,6 +112,16 @@ jobs:
               echo 'Using admin as the CRM login name.'
             fi
 
+            if ! grep -q '^ADMIN_PASS=.' "$APP_DIR/.env"; then
+              printf '\nADMIN_PASS=%s\n' "$(openssl rand -hex 32)" >> "$APP_DIR/.env"
+              echo 'Generated an initial admin password and saved it in the protected .env file.'
+            fi
+
+            if ! grep -q '^SESSION_SECRET=.' "$APP_DIR/.env"; then
+              printf '\nSESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$APP_DIR/.env"
+              echo 'Generated a session signing secret and saved it in the protected .env file.'
+            fi
+
             for variable in ADMIN_USER ADMIN_PASS SESSION_SECRET; do
               if ! grep -q "^${variable}=." "$APP_DIR/.env"; then
                 echo "Missing $variable in $APP_DIR/.env."

@@ -38,7 +38,10 @@ source trong `/home/app/crm`. Workflow giữ lại `.env`, `.git` và `data/`; k
 xóa volume Docker. Nếu bản triển khai trước có
 `/home/app/crm/internal-crm-finance/.env`, workflow chép các biến CRM còn thiếu
 `ADMIN_PASS` và `SESSION_SECRET` từ file đó vào `.env` gốc trước khi dọn thư
-mục app cũ; nếu thiếu `ADMIN_USER`, workflow dùng `admin`. App lắng nghe tại
+mục app cũ. Nếu thiếu, workflow dùng username `admin` và tạo mật khẩu cùng
+`SESSION_SECRET` ngẫu nhiên trong `.env` (không ghi các giá trị này ra log).
+Nếu mật khẩu được tạo tự động, lấy nó qua SSH bằng
+`grep '^ADMIN_PASS=' /home/app/crm/.env` và giữ riêng tư. App lắng nghe tại
 `127.0.0.1:3002`, khớp Nginx
 `crm.novatechhp.vn` với `proxy_pass http://127.0.0.1:3002`. Nginx HTTPS cần gửi
 `X-Forwarded-Proto https`; cấu hình này cho phép session cookie bảo mật hoạt
