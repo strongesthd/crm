@@ -1,0 +1,155 @@
+import { defineObject, FieldType } from 'twenty-sdk/define';
+
+import {
+  CASHBOOK_ENTRY_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  CASHBOOK_ENTRY_UNIVERSAL_IDENTIFIER,
+} from 'src/constants/universal-identifiers';
+
+export default defineObject({
+  universalIdentifier: CASHBOOK_ENTRY_UNIVERSAL_IDENTIFIER,
+  nameSingular: 'cashbookEntry',
+  namePlural: 'cashbookEntries',
+  labelSingular: 'Phiếu thu/chi',
+  labelPlural: 'Sổ thu chi',
+  description: 'Ghi nhận các khoản thu và chi thực tế.',
+  icon: 'IconCreditCard',
+  labelIdentifierFieldMetadataUniversalIdentifier:
+    CASHBOOK_ENTRY_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+  fields: [
+    {
+      universalIdentifier: CASHBOOK_ENTRY_NAME_FIELD_UNIVERSAL_IDENTIFIER,
+      type: FieldType.TEXT,
+      name: 'name',
+      label: 'Mã phiếu',
+      icon: 'IconHash',
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000251',
+      type: FieldType.DATE,
+      name: 'transactionDate',
+      label: 'Ngày thu/chi',
+      icon: 'IconCalendar',
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000252',
+      type: FieldType.SELECT,
+      name: 'direction',
+      label: 'Loại giao dịch',
+      icon: 'IconArrowsSort',
+      options: [
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000913',
+          value: 'INCOME',
+          label: 'Thu',
+          position: 0,
+          color: 'green',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000914',
+          value: 'EXPENSE',
+          label: 'Chi',
+          position: 1,
+          color: 'red',
+        },
+      ],
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000253',
+      type: FieldType.SELECT,
+      name: 'category',
+      label: 'Danh mục',
+      icon: 'IconCategory',
+      options: [
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000915',
+          value: 'SALES',
+          label: 'Thu bán hàng',
+          position: 0,
+          color: 'green',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000916',
+          value: 'OPERATING',
+          label: 'Chi vận hành',
+          position: 1,
+          color: 'orange',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000917',
+          value: 'PURCHASE',
+          label: 'Chi mua hàng',
+          position: 2,
+          color: 'blue',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000918',
+          value: 'OTHER',
+          label: 'Khác',
+          position: 3,
+          color: 'gray',
+        },
+      ],
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000254',
+      type: FieldType.CURRENCY,
+      name: 'amount',
+      label: 'Số tiền',
+      icon: 'IconCreditCard',
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000255',
+      type: FieldType.SELECT,
+      name: 'paymentMethod',
+      label: 'Phương thức',
+      icon: 'IconCreditCard',
+      options: [
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000919',
+          value: 'CASH',
+          label: 'Tiền mặt',
+          position: 0,
+          color: 'green',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000920',
+          value: 'BANK_TRANSFER',
+          label: 'Chuyển khoản',
+          position: 1,
+          color: 'blue',
+        },
+        {
+          id: 'f1ab2000-0000-4000-8000-000000000921',
+          value: 'OTHER',
+          label: 'Khác',
+          position: 2,
+          color: 'gray',
+        },
+      ],
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000256',
+      type: FieldType.TEXT,
+      name: 'counterparty',
+      label: 'Khách hàng/nhà cung cấp',
+      icon: 'IconBuildingSkyscraper',
+      isNullable: true,
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000258',
+      type: FieldType.TEXT,
+      name: 'reference',
+      label: 'Mã tham chiếu',
+      icon: 'IconCreditCard',
+      isNullable: true,
+    },
+    {
+      universalIdentifier: 'f1ab2000-0000-4000-8000-000000000257',
+      type: FieldType.RICH_TEXT,
+      name: 'description',
+      label: 'Diễn giải',
+      icon: 'IconNotes',
+      isNullable: true,
+    },
+  ],
+});
