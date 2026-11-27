@@ -1,0 +1,194 @@
+<%- include('partials/app-shell-start') %>
+<div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">Quản lý kho</h1>
+    <p class="mt-1 text-sm text-slate-500">Theo dõi hàng hóa, nhập xuất tồn và khuyến mại. Quản trị viên, Quản lý và Kế toán được xem giá vốn, lãi gộp và lập chứng từ kho.</p>
+  </div>
+  <% if (canManageInventory) { %>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" data-modal-target="inventory-document-modal" data-modal-toggle="inventory-document-modal" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-document-type="PURCHASE">
+        <i data-lucide="package-plus" class="h-4 w-4 text-emerald-600"></i>Nhập kho
+      </button>
+      <button type="button" data-modal-target="inventory-document-modal" data-modal-toggle="inventory-document-modal" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700" data-document-type="SALE">
+        <i data-lucide="package-minus" class="h-4 w-4"></i>Tạo đơn xuất / bán
+      </button>
+      <button type="button" data-modal-target="inventory-product-modal" data-modal-toggle="inventory-product-modal" data-product-create class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <i data-lucide="plus" class="h-4 w-4"></i>Thêm hàng hóa
+      </button>
+    </div>
+  <% } %>
+</div>
+
+<section class="panel-card mb-6">
+  <div class="mb-5">
+    <h2 class="text-base font-semibold text-slate-900">Danh mục hàng hóa</h2>
+    <p class="mt-1 text-sm text-slate-500">Giá bán và chương trình khuyến mại đang áp dụng được hiển thị cho nhân viên.</p>
+  </div>
+  <% if (products.length === 0) { %>
+    <%- include('partials/empty-state', { icon: 'boxes', title: 'Chưa có hàng hóa', description: 'Thêm mặt hàng để bắt đầu theo dõi tồn kho.' }) %>
+  <% } else { %>
+    <div class="overflow-x-auto">
+      <table class="data-table min-w-[900px]">
+        <thead>
+          <tr>
+            <th>Mã / hàng hóa</th><th>Danh mục</th><th>Tồn kho</th>
+            <% if (canViewCosts) { %><th>Giá vốn</th><% } %>
+            <th>Giá bán</th><th>Khuyến mại</th>
+            <% if (canViewCosts) { %><th>Lãi gộp / đơn vị</th><th>Giá trị tồn</th><% } %>
+            <% if (canManageInventory) { %><th class="text-right">Thao tác</th><% } %>
+          </tr>
+        </thead>
+        <tbody>
+          <% products.forEach((product) => { %>
+            <tr>
+              <td>
+                <span class="block font-semibold text-slate-800"><%= product.name %></span>
+                <span class="mt-0.5 block text-xs text-slate-500"><%= product.sku %> · <%= product.unit %></span>
+              </td>
+              <td><span class="badge badge-neutral"><%= product.category %></span></td>
+              <td class="whitespace-nowrap font-semibold <%= product.stock_quantity <= 0 ? 'text-rose-700' : 'text-slate-700' %>"><%= product.formattedStock %> <%= product.unit %></td>
+              <% if (canViewCosts) { %><td class="whitespace-nowrap text-slate-600"><%= product.formattedCostPrice %></td><% } %>
+              <td class="whitespace-nowrap">
+                <% if (product.effectiveSalePrice < product.sale_price) { %>
+                  <span class="block font-semibold text-rose-700"><%= product.formattedSalePrice %></span>
+                  <span class="text-xs text-slate-400 line-through"><%= product.formattedListPrice %></span>
+                <% } else { %>
+                  <span class="font-semibold text-slate-700"><%= product.formattedSalePrice %></span>
+                <% } %>
+              </td>
+              <td>
+                <% if (product.promotionLabel) { %>
+                  <span class="badge badge-debt"><%= product.promotionLabel %></span>
+                  <span class="mt-1 block text-xs text-slate-500">Khuyến mại đang áp dụng</span>
+                <% } else if (product.promotion_type) { %>
+                  <span class="text-xs text-slate-500">Có lịch khuyến mại</span>
+                <% } else { %>
+                  <span class="text-sm text-slate-400">—</span>
+                <% } %>
+              </td>
+              <% if (canViewCosts) { %>
+                <td class="whitespace-nowrap font-medium <%= product.effectiveSalePrice >= product.cost_price ? 'text-emerald-700' : 'text-rose-700' %>"><%= product.formattedUnitMargin %></td>
+                <td class="whitespace-nowrap text-slate-600"><%= product.formattedStockValue %></td>
+              <% } %>
+              <% if (canManageInventory) { %>
+                <td class="text-right">
+                  <button type="button" data-product-edit="<%= product.detailsJson %>" data-modal-target="inventory-product-modal" data-modal-toggle="inventory-product-modal" class="icon-button" aria-label="Sửa <%= product.name %>" title="Chỉnh sửa hàng hóa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
+                </td>
+              <% } %>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<section class="panel-card">
+  <div class="mb-5">
+    <h2 class="text-base font-semibold text-slate-900">Chứng từ nhập xuất</h2>
+    <p class="mt-1 text-sm text-slate-500">Chứng từ tự tạo phiếu thu/chi ở trạng thái chờ duyệt. Tồn kho chỉ thay đổi sau khi Quản lý duyệt phiếu.</p>
+  </div>
+  <% if (documents.length === 0) { %>
+    <%- include('partials/empty-state', { icon: 'clipboard-list', title: 'Chưa có chứng từ kho', description: 'Các phiếu nhập và đơn bán sẽ xuất hiện tại đây.' }) %>
+  <% } else { %>
+    <div class="overflow-x-auto">
+      <table class="data-table min-w-[760px]">
+        <thead><tr><th>Chứng từ</th><th>Ngày</th><th>Đối tác</th><th>Số mặt hàng</th><% if (canViewCosts) { %><th>Tổng tiền</th><th>Lãi gộp đơn bán</th><% } %><th>Trạng thái duyệt</th></tr></thead>
+        <tbody>
+          <% documents.forEach((document) => { %>
+            <tr>
+              <td>
+                <span class="block font-semibold text-slate-800"><%= document.document_type === 'PURCHASE' ? 'Nhập kho' : 'Xuất / bán' %> #<%= document.id %></span>
+                <span class="mt-0.5 block text-xs text-slate-500"><%= document.document_type === 'PURCHASE' ? 'Phiếu chi liên kết' : 'Phiếu thu liên kết' %></span>
+              </td>
+              <td class="whitespace-nowrap text-slate-600"><%= document.formattedDate %></td>
+              <td class="text-slate-600"><%= document.party_name || '—' %></td>
+              <td class="text-slate-600"><%= document.line_count %></td>
+              <% if (canViewCosts) { %>
+                <td class="whitespace-nowrap font-medium text-slate-700"><%= document.formattedAmount %></td>
+                <td class="whitespace-nowrap font-medium <%= document.document_type === 'SALE' && document.gross_profit_amount >= 0 ? 'text-emerald-700' : document.document_type === 'SALE' ? 'text-rose-700' : 'text-slate-400' %>"><%= document.document_type === 'SALE' ? document.formattedGrossProfit : '—' %></td>
+              <% } %>
+              <td>
+                <span class="badge <%= document.approval_status === 'PENDING' ? 'badge-debt' : document.approval_status === 'APPROVED' ? 'badge-paid' : 'badge-neutral' %>"><%= document.approval_status === 'PENDING' ? 'Chờ duyệt' : document.approval_status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối' %></span>
+                <% if (document.rejection_reason) { %><span class="mt-1 block max-w-[220px] truncate text-xs text-rose-600" title="<%= document.rejection_reason %>"><%= document.rejection_reason %></span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<% if (canManageInventory) { %>
+<div id="inventory-product-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-2xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="inventory-product-title" class="text-lg font-semibold text-slate-900">Thêm hàng hóa</h3><p class="mt-1 text-sm text-slate-500">Giá vốn và lãi gộp chỉ hiển thị với người có quyền quản lý kho.</p></div>
+        <button type="button" data-modal-hide="inventory-product-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <form id="inventory-product-form" method="post" action="/inventory/products" class="grid gap-4 p-6 sm:grid-cols-2">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div><label for="inventory-sku" class="form-label">Mã hàng *</label><input id="inventory-sku" name="sku" required maxlength="80" class="form-input"></div>
+        <div><label for="inventory-name" class="form-label">Tên hàng hóa *</label><input id="inventory-name" name="name" required maxlength="160" class="form-input"></div>
+        <div><label for="inventory-category" class="form-label">Danh mục *</label><input id="inventory-category" name="category" required maxlength="100" class="form-input" value="Khác"></div>
+        <div><label for="inventory-unit" class="form-label">Đơn vị tính *</label><input id="inventory-unit" name="unit" required maxlength="30" class="form-input" placeholder="Cái, hộp, kg..."></div>
+        <div><label for="inventory-cost-price" class="form-label">Giá vốn hiện tại (VNĐ) *</label><input id="inventory-cost-price" name="costPrice" type="number" min="0" max="9000000000000" step="1" required class="form-input" value="0"></div>
+        <div><label for="inventory-sale-price" class="form-label">Giá bán (VNĐ) *</label><input id="inventory-sale-price" name="salePrice" type="number" min="1" max="9000000000000" step="1" required class="form-input"></div>
+        <div>
+          <label for="inventory-promotion-type" class="form-label">Khuyến mại</label>
+          <select id="inventory-promotion-type" name="promotionType" class="form-input"><option value="">Không khuyến mại</option><option value="percent">Giảm theo phần trăm</option><option value="fixed">Giảm số tiền cố định / đơn vị</option></select>
+        </div>
+        <div><label for="inventory-promotion-value" class="form-label">Mức giảm (%) hoặc VNĐ</label><input id="inventory-promotion-value" name="promotionValue" type="number" min="0" step="1" class="form-input" value="0"></div>
+        <div><label for="inventory-promotion-start" class="form-label">Từ ngày</label><input id="inventory-promotion-start" name="promotionStartDate" type="date" class="form-input"></div>
+        <div><label for="inventory-promotion-end" class="form-label">Đến ngày</label><input id="inventory-promotion-end" name="promotionEndDate" type="date" class="form-input"></div>
+        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4 sm:col-span-2">
+          <button type="button" data-modal-hide="inventory-product-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
+          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu hàng hóa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="inventory-document-modal" tabindex="-1" aria-hidden="true" data-products="<%= JSON.stringify(productsForForms) %>" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-3xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="inventory-document-title" class="text-lg font-semibold text-slate-900">Tạo chứng từ kho</h3><p class="mt-1 text-sm text-slate-500">Phiếu thu/chi liên kết sẽ chờ Quản lý duyệt; tồn kho chỉ đổi sau khi duyệt.</p></div>
+        <button type="button" data-modal-hide="inventory-document-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <form id="inventory-document-form" method="post" action="/inventory/documents" class="space-y-4 p-6">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input id="inventory-document-type" type="hidden" name="type" value="PURCHASE">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div><label for="inventory-document-date" class="form-label">Ngày chứng từ *</label><input id="inventory-document-date" name="date" type="date" required class="form-input"></div>
+          <div><label for="inventory-document-payment" class="form-label">Thanh toán *</label><select id="inventory-document-payment" name="paymentStatus" required class="form-input"><% paymentStatuses.forEach((status) => { %><option value="<%= status %>"><%= status %></option><% }) %></select></div>
+        </div>
+        <div id="inventory-supplier-container"><label for="inventory-supplier" class="form-label">Nhà cung cấp</label><input id="inventory-supplier" name="partyName" maxlength="160" class="form-input"></div>
+        <div id="inventory-customer-container" class="hidden"><label for="inventory-customer" class="form-label">Khách hàng</label><select id="inventory-customer" name="customerId" class="form-input"><option value="">Không liên kết khách hàng</option><% customers.forEach((customer) => { %><option value="<%= customer.id %>"><%= customer.name %></option><% }) %></select></div>
+        <div>
+          <div class="mb-2 flex items-center justify-between"><h4 class="text-sm font-semibold text-slate-800">Mặt hàng</h4><button type="button" id="inventory-add-line" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Thêm dòng</button></div>
+          <div id="inventory-lines" class="space-y-3"></div>
+        </div>
+        <p id="inventory-document-help" class="rounded-lg bg-indigo-50 p-3 text-xs leading-5 text-indigo-800">Giá nhập sẽ được ghi nhận thành phiếu chi chờ duyệt.</p>
+        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" data-modal-hide="inventory-document-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
+          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu chứng từ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<template id="inventory-line-template">
+  <div class="inventory-line grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[minmax(0,1fr)_130px_180px_auto]">
+    <div><label class="form-label">Hàng hóa</label><select name="productId" required class="inventory-product-select form-input"><option value="">Chọn mặt hàng</option></select></div>
+    <div><label class="form-label">Số lượng</label><input name="quantity" type="number" min="0.001" max="1000000000" step="0.001" value="1" required class="form-input"></div>
+    <div class="inventory-unit-price-container"><label class="form-label">Giá nhập / đơn vị</label><input name="unitPrice" type="number" min="0" max="9000000000000" step="1" value="0" class="inventory-unit-price form-input"></div>
+    <button type="button" class="inventory-remove-line mt-6 rounded-lg px-2 text-rose-600 hover:bg-rose-50" aria-label="Xóa dòng"><i data-lucide="x" class="h-5 w-5"></i></button>
+  </div>
+</template>
+<% } %>
+<%- include('partials/app-shell-end') %>

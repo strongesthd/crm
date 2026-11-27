@@ -82,6 +82,53 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS products (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sku TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'Khác',
+      unit TEXT NOT NULL,
+      cost_price INTEGER NOT NULL CHECK (cost_price >= 0),
+      sale_price INTEGER NOT NULL CHECK (sale_price > 0),
+      promotion_type TEXT CHECK (promotion_type IN ('percent', 'fixed')),
+      promotion_value INTEGER NOT NULL DEFAULT 0 CHECK (promotion_value >= 0),
+      promotion_start_date TEXT,
+      promotion_end_date TEXT,
+      stock_quantity REAL NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_type TEXT NOT NULL CHECK (document_type IN ('PURCHASE', 'SALE')),
+      document_date TEXT NOT NULL,
+      party_name TEXT NOT NULL DEFAULT '',
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      payment_status TEXT NOT NULL CHECK (payment_status IN ('Đã thanh toán', 'Công nợ')),
+      approval_status TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+      transaction_id INTEGER UNIQUE REFERENCES transactions(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      rejection_reason TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_document_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES inventory_documents(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      product_name TEXT NOT NULL,
+      sku TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      quantity REAL NOT NULL CHECK (quantity > 0),
+      unit_price INTEGER NOT NULL CHECK (unit_price >= 0),
+      unit_cost INTEGER NOT NULL CHECK (unit_cost >= 0),
+      discount_per_unit INTEGER NOT NULL DEFAULT 0 CHECK (discount_per_unit >= 0)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
     CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
     CREATE INDEX IF NOT EXISTS idx_transactions_date
@@ -90,6 +137,13 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       ON transactions(payment_status, type);
     CREATE INDEX IF NOT EXISTS idx_transactions_customer
       ON transactions(customer_id, transaction_date);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_inventory_documents_date
+      ON inventory_documents(document_date, id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_documents_status
+      ON inventory_documents(approval_status, document_type);
+    CREATE INDEX IF NOT EXISTS idx_inventory_document_items_product
+      ON inventory_document_items(product_id, document_id);
 
     CREATE TABLE IF NOT EXISTS sessions (
       sid TEXT PRIMARY KEY,

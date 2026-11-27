@@ -9,49 +9,71 @@ const {
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate } = require('../utils/format');
+const {
+  applyInventoryDocumentApproval,
+  isInventoryTransaction,
+  rejectInventoryDocument,
+} = require('../utils/inventory');
 
 const createTransactionsRouter = (db) => {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    const canViewInventoryCosts =
+      req.currentUser.isAdmin ||
+      req.currentUser.role === 'accountant' ||
+      req.currentUser.role === 'manager';
     const filters = readFilters(req.query);
     const { conditions, parameters } = buildConditions(filters);
     const transactions = db
       .prepare(
         `SELECT t.*, c.name AS customer_name,
           creator.full_name AS creator_name,
-          reviewer.full_name AS reviewer_name
+          reviewer.full_name AS reviewer_name,
+          inventory.id AS inventory_document_id,
+          inventory.document_type AS inventory_document_type
          FROM transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
          LEFT JOIN users creator ON creator.id = t.created_by
          LEFT JOIN users reviewer ON reviewer.id = t.reviewed_by
+         LEFT JOIN inventory_documents inventory ON inventory.transaction_id = t.id
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
          ORDER BY t.transaction_date DESC, t.id DESC`,
       )
       .all(...parameters)
-      .map((transaction) => ({
-        ...transaction,
-        formattedAmount: formatCurrency(transaction.amount),
-        formattedDate: formatDate(transaction.transaction_date),
-        detailsJson: JSON.stringify({
-          id: transaction.id,
-          type: transaction.type,
-          amount: transaction.amount,
-          category: transaction.category,
-          description: transaction.description,
-          transactionDate: transaction.transaction_date,
-          paymentStatus: transaction.payment_status,
-          approvalStatus: transaction.approval_status,
-          customerId: transaction.customer_id,
-          customerName: transaction.customer_name || 'Không liên kết',
-          creatorName: transaction.creator_name || 'Không rõ',
-          reviewerName: transaction.reviewer_name || 'Chưa duyệt',
-          rejectionReason: transaction.rejection_reason,
-          formattedAmount: formatCurrency(transaction.amount),
+      .map((transaction) => {
+        const amountHidden =
+          !canViewInventoryCosts &&
+          transaction.inventory_document_type === 'PURCHASE';
+        const formattedAmount = amountHidden
+          ? 'Bảo mật'
+          : formatCurrency(transaction.amount);
+
+        return {
+          ...transaction,
+          amountHidden,
+          formattedAmount,
           formattedDate: formatDate(transaction.transaction_date),
-        }),
-        canEdit: canEditTransaction(req.currentUser, transaction),
-      }));
+          detailsJson: JSON.stringify({
+            id: transaction.id,
+            type: transaction.type,
+            ...(!amountHidden ? { amount: transaction.amount } : {}),
+            category: transaction.category,
+            description: transaction.description,
+            transactionDate: transaction.transaction_date,
+            paymentStatus: transaction.payment_status,
+            approvalStatus: transaction.approval_status,
+            customerId: transaction.customer_id,
+            customerName: transaction.customer_name || 'Không liên kết',
+            creatorName: transaction.creator_name || 'Không rõ',
+            reviewerName: transaction.reviewer_name || 'Chưa duyệt',
+            rejectionReason: transaction.rejection_reason,
+            formattedAmount,
+            formattedDate: formatDate(transaction.transaction_date),
+          }),
+          canEdit: canEditTransaction(req.currentUser, transaction),
+        };
+      });
 
     const customers = db
       .prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE')
@@ -74,19 +96,26 @@ const createTransactionsRouter = (db) => {
       canMarkTransactionsPaid:
         req.currentUser.isAdmin || req.currentUser.role === 'accountant',
       canDeleteTransactions: req.currentUser.isAdmin,
+      canViewInventoryCosts,
     });
   });
 
   router.get('/export.csv', (req, res) => {
+    const canViewInventoryCosts =
+      req.currentUser.isAdmin ||
+      req.currentUser.role === 'accountant' ||
+      req.currentUser.role === 'manager';
     const filters = readFilters(req.query);
     const { conditions, parameters } = buildConditions(filters);
     const transactions = db
       .prepare(
         `SELECT t.id, t.type, t.amount, t.category, t.description,
           t.transaction_date, t.payment_status, t.approval_status,
+          inventory.document_type AS inventory_document_type,
           c.name AS customer_name
          FROM transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
+         LEFT JOIN inventory_documents inventory ON inventory.transaction_id = t.id
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
          ORDER BY t.transaction_date DESC, t.id DESC`,
       )
@@ -106,9 +135,18 @@ const createTransactionsRouter = (db) => {
       ...transactions.map((transaction) => [
         transaction.id,
         transaction.type === 'THU' ? 'Thu' : 'Chi',
-        transaction.amount,
-        transaction.category,
-        transaction.description,
+        !canViewInventoryCosts &&
+        transaction.inventory_document_type === 'PURCHASE'
+          ? ''
+          : transaction.amount,
+        !canViewInventoryCosts &&
+        transaction.inventory_document_type === 'PURCHASE'
+          ? 'Nhập hàng hóa'
+          : transaction.category,
+        !canViewInventoryCosts &&
+        transaction.inventory_document_type === 'PURCHASE'
+          ? `Chi phí nhập kho #${transaction.id}`
+          : transaction.description,
         formatDate(transaction.transaction_date),
         transaction.payment_status,
         getApprovalLabel(transaction.approval_status),
@@ -154,7 +192,11 @@ const createTransactionsRouter = (db) => {
     const transactionId = parseRecordId(req.params.id);
     const existingTransaction = db
       .prepare(
-        'SELECT approval_status, created_by FROM transactions WHERE id = ?',
+        `SELECT t.approval_status, t.created_by,
+          inventory.id AS inventory_document_id
+         FROM transactions t
+         LEFT JOIN inventory_documents inventory ON inventory.transaction_id = t.id
+         WHERE t.id = ?`,
       )
       .get(transactionId);
 
@@ -199,17 +241,23 @@ const createTransactionsRouter = (db) => {
     requireRoles('manager'),
     (req, res) => {
       const transactionId = parseRecordId(req.params.id);
-      const result = db
-        .prepare(
-          `UPDATE transactions
-           SET approval_status = 'APPROVED', reviewed_by = ?, rejection_reason = ''
-           WHERE id = ? AND approval_status = 'PENDING'`,
-        )
-        .run(req.currentUser.id, transactionId);
+      const approve = db.transaction(() => {
+        const result = db
+          .prepare(
+            `UPDATE transactions
+             SET approval_status = 'APPROVED', reviewed_by = ?, rejection_reason = ''
+             WHERE id = ? AND approval_status = 'PENDING'`,
+          )
+          .run(req.currentUser.id, transactionId);
 
-      if (result.changes === 0) {
-        throw getMissingOrReviewedError(db, transactionId);
-      }
+        if (result.changes === 0) {
+          throw getMissingOrReviewedError(db, transactionId);
+        }
+
+        applyInventoryDocumentApproval(db, transactionId, req.currentUser.id);
+      });
+
+      approve();
 
       setFlash(req, 'success', 'Đã duyệt phiếu.');
       res.redirect('/transactions');
@@ -231,17 +279,28 @@ const createTransactionsRouter = (db) => {
         );
       }
 
-      const result = db
-        .prepare(
-          `UPDATE transactions
-           SET approval_status = 'REJECTED', reviewed_by = ?, rejection_reason = ?
-           WHERE id = ? AND approval_status = 'PENDING'`,
-        )
-        .run(req.currentUser.id, reason, transactionId);
+      const reject = db.transaction(() => {
+        const result = db
+          .prepare(
+            `UPDATE transactions
+             SET approval_status = 'REJECTED', reviewed_by = ?, rejection_reason = ?
+             WHERE id = ? AND approval_status = 'PENDING'`,
+          )
+          .run(req.currentUser.id, reason, transactionId);
 
-      if (result.changes === 0) {
-        throw getMissingOrReviewedError(db, transactionId);
-      }
+        if (result.changes === 0) {
+          throw getMissingOrReviewedError(db, transactionId);
+        }
+
+        rejectInventoryDocument(
+          db,
+          transactionId,
+          req.currentUser.id,
+          reason,
+        );
+      });
+
+      reject();
 
       setFlash(req, 'success', 'Đã từ chối phiếu.');
       res.redirect('/transactions');
@@ -276,6 +335,14 @@ const createTransactionsRouter = (db) => {
 
   router.post('/:id/delete', requireRoles('admin'), (req, res) => {
     const transactionId = parseRecordId(req.params.id);
+
+    if (isInventoryTransaction(db, transactionId)) {
+      throw createHttpError(
+        409,
+        'Không thể xóa phiếu thu chi được tạo từ chứng từ kho.',
+      );
+    }
+
     const result = db
       .prepare('DELETE FROM transactions WHERE id = ?')
       .run(transactionId);
@@ -463,9 +530,10 @@ const getApprovalLabel = (status) => {
 };
 
 const canEditTransaction = (user, transaction) =>
-  user.isAdmin ||
-  transaction.created_by === user.id ||
-  (user.role === 'accountant' && transaction.approval_status === 'PENDING');
+  !transaction.inventory_document_id &&
+  (user.isAdmin ||
+    transaction.created_by === user.id ||
+    (user.role === 'accountant' && transaction.approval_status === 'PENDING'));
 
 const getMissingOrReviewedError = (db, transactionId) => {
   const transaction = db

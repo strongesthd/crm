@@ -14,6 +14,10 @@ const createDashboardRouter = (db) => {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    const canViewCosts =
+      req.currentUser.isAdmin ||
+      req.currentUser.role === 'accountant' ||
+      req.currentUser.role === 'manager';
     const now = new Date();
     const currentYear = now.getFullYear();
     const selectedMonth = Number.parseInt(req.query.month, 10);
@@ -49,7 +53,18 @@ const createDashboardRouter = (db) => {
          WHERE approval_status = 'APPROVED'
            AND payment_status = 'Công nợ'`,
       )
-      .get().amount;
+      .get();
+
+    const visibleOutstanding = canViewCosts
+      ? outstanding.amount
+      : db
+          .prepare(
+            `SELECT COALESCE(SUM(amount), 0) AS amount
+             FROM transactions
+             WHERE approval_status = 'APPROVED'
+               AND payment_status = 'Công nợ' AND type = 'THU'`,
+          )
+          .get().amount;
 
     const pendingApprovalCount =
       req.currentUser.role === 'manager'
@@ -107,16 +122,24 @@ const createDashboardRouter = (db) => {
 
     const recentTransactions = db
       .prepare(
-        `SELECT t.*, c.name AS customer_name
+        `SELECT t.*, c.name AS customer_name,
+          inventory.document_type AS inventory_document_type
          FROM transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
+         LEFT JOIN inventory_documents inventory ON inventory.transaction_id = t.id
          ORDER BY t.transaction_date DESC, t.id DESC
          LIMIT 5`,
       )
       .all()
       .map((transaction) => ({
         ...transaction,
-        formattedAmount: formatCurrency(transaction.amount),
+        amountHidden:
+          !canViewCosts &&
+          transaction.inventory_document_type === 'PURCHASE',
+        formattedAmount:
+          !canViewCosts && transaction.inventory_document_type === 'PURCHASE'
+            ? 'Bảo mật'
+            : formatCurrency(transaction.amount),
         formattedDate: formatDate(transaction.transaction_date),
       }));
 
@@ -133,20 +156,21 @@ const createDashboardRouter = (db) => {
         income: paidTotals.income,
         expenses: paidTotals.expenses,
         profit: paidTotals.income - paidTotals.expenses,
-        outstanding,
+        outstanding: visibleOutstanding,
       },
       chartData: {
         labels: monthStarts.map(({ label }) => label),
         income: monthStarts.map(
           ({ key }) => chartTotalsByMonth.get(key).income,
         ),
-        expenses: monthStarts.map(
-          ({ key }) => chartTotalsByMonth.get(key).expenses,
-        ),
+        expenses: canViewCosts
+          ? monthStarts.map(({ key }) => chartTotalsByMonth.get(key).expenses)
+          : [],
       },
       recentTransactions,
       canApproveTransactions: req.currentUser.role === 'manager',
       pendingApprovalCount,
+      canViewCosts,
     });
   });
 

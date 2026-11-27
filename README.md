@@ -1,7 +1,7 @@
 # CRM Nội bộ
 
-CRM quản lý khách hàng và sổ thu chi. Ứng dụng dùng Node.js, Express và SQLite;
-dữ liệu được lưu bền vững trong `data/database.sqlite`.
+CRM quản lý khách hàng, sổ thu chi và tồn kho hàng hóa. Ứng dụng dùng Node.js,
+Express và SQLite; dữ liệu được lưu bền vững trong `data/database.sqlite`.
 
 ## Chạy local
 
@@ -20,13 +20,12 @@ Trong `.env`, đặt `ADMIN_USER`, `ADMIN_PASS` (ít nhất 12 ký tự) và
 ## Tài khoản và duyệt phiếu
 
 Đăng nhập bằng tài khoản quản trị, mở **Người dùng** trên thanh bên để tạo
-tài khoản **Kế toán** hoặc **Thủ quỹ**. Kế toán được thêm/sửa khách hàng và
-chỉnh sửa phiếu đang chờ duyệt; thủ quỹ được tạo phiếu. Cả hai vai trò đều xem
-được dữ liệu. Quyền duyệt được cấp riêng trên từng tài khoản tại trang Người
-dùng; quản trị viên luôn có quyền duyệt. Admin chọn một tài khoản trong danh
-sách để sửa thông tin, chức danh, quyền duyệt hoặc khóa/kích hoạt tài khoản.
-Mỗi người dùng cũng có thể tự đổi họ tên, tên đăng nhập và mật khẩu ở mục
-**Tài khoản của tôi**.
+Tài khoản **Quản lý**, **Kế toán** hoặc **Thủ quỹ** từ trang **Người dùng**.
+Quản lý có quyền quản trị và là vai trò duy nhất được duyệt hoặc từ chối phiếu.
+Kế toán được thêm/sửa khách hàng, quản lý kho và chỉnh sửa phiếu đang chờ duyệt;
+thủ quỹ được tạo phiếu và xem dữ liệu. Admin quản lý người dùng và kho nhưng
+không duyệt phiếu. Mỗi người dùng cũng có thể tự đổi họ tên, tên đăng nhập và
+mật khẩu ở mục **Tài khoản của tôi**.
 
 Mọi phiếu mới đều ở trạng thái **Chờ duyệt**. Người có quyền duyệt có thể duyệt
 hoặc từ chối phiếu; từ chối phải có lý do. Chỉ phiếu đã duyệt mới được tính vào
@@ -34,6 +33,20 @@ tổng thu chi, công nợ và báo cáo. Người tạo được xem và sửa 
 toán cũng có thể sửa phiếu đang chờ, còn admin có thể sửa mọi phiếu. Mỗi lần
 sửa, phiếu quay lại trạng thái chờ duyệt. Khi nâng cấp cơ sở dữ liệu hiện có,
 các tài khoản cũ được giữ lại và giao dịch cũ được đánh dấu đã duyệt.
+
+## Quản lý kho
+
+Trang **Quản lý kho** cho phép tạo hàng hóa, cập nhật mã hàng, đơn vị tính,
+giá vốn, giá bán và khuyến mại theo phần trăm hoặc số tiền trong khoảng ngày.
+Quản trị viên, Quản lý và Kế toán lập phiếu nhập hoặc đơn bán nhiều mặt hàng.
+Phiếu nhập tự tạo giao dịch chi; đơn bán áp dụng giá bán/khuyến mại và tự tạo
+giao dịch thu. Cả hai giao dịch được liên kết với chứng từ kho và chờ Quản lý
+duyệt. Tồn kho chỉ tăng/giảm khi phiếu được duyệt; đơn bán không thể vượt tồn
+khả dụng. Giá vốn bình quân được cập nhật theo các phiếu nhập đã duyệt.
+
+Các vai trò khác vẫn xem được danh mục, số lượng tồn, giá bán và khuyến mại,
+nhưng không xem giá vốn, lãi gộp hay giá trị tồn kho. Giá trị các phiếu nhập
+cũng được ẩn khỏi sổ thu chi, CSV và tổng quan của những vai trò này.
 
 ## Deploy VPS
 

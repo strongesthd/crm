@@ -21,6 +21,9 @@
       <a href="/transactions" class="nav-link <%= activePage === 'transactions' ? 'nav-link-active' : '' %>">
         <i data-lucide="arrow-left-right" class="h-5 w-5"></i><span>Sổ thu chi</span>
       </a>
+      <a href="/inventory" class="nav-link <%= activePage === 'inventory' ? 'nav-link-active' : '' %>">
+        <i data-lucide="boxes" class="h-5 w-5"></i><span>Quản lý kho</span>
+      </a>
       <% if (currentUser.isAdmin) { %>
         <a href="/users" class="nav-link <%= activePage === 'users' ? 'nav-link-active' : '' %>">
           <i data-lucide="user-round-cog" class="h-5 w-5"></i><span>Người dùng</span>

@@ -64,7 +64,7 @@
               <td><span class="block max-w-[260px] truncate font-medium text-slate-800"><%= transaction.description || 'Không có diễn giải' %></span><span class="mt-0.5 block text-xs text-slate-400">Mã #<%= transaction.id %></span></td>
               <td class="text-slate-600"><%= transaction.customer_name || '—' %></td>
               <td><span class="badge badge-neutral"><%= transaction.category %></span></td>
-              <td class="whitespace-nowrap font-semibold <%= transaction.type === 'THU' ? 'text-emerald-700' : 'text-rose-700' %>"><%= transaction.type === 'THU' ? '+' : '−' %><%= transaction.formattedAmount %></td>
+              <td class="whitespace-nowrap font-semibold <%= transaction.amountHidden ? 'text-slate-400' : transaction.type === 'THU' ? 'text-emerald-700' : 'text-rose-700' %>"><%= transaction.amountHidden ? 'Bảo mật' : `${transaction.type === 'THU' ? '+' : '−'}${transaction.formattedAmount}` %></td>
               <td><span class="badge <%= transaction.payment_status === 'Công nợ' ? 'badge-debt' : 'badge-paid' %>"><%= transaction.payment_status %></span></td>
               <td>
                 <span class="badge <%= transaction.approval_status === 'PENDING' ? 'badge-debt' : transaction.approval_status === 'REJECTED' ? 'badge-neutral' : 'badge-paid' %>">

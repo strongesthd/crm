@@ -11,6 +11,7 @@ const createAccountRouter = require('./routes/account');
 const createAuthRouter = require('./routes/auth');
 const createCustomersRouter = require('./routes/customers');
 const createDashboardRouter = require('./routes/dashboard');
+const createInventoryRouter = require('./routes/inventory');
 const { createTransactionsRouter } = require('./routes/transactions');
 const createUsersRouter = require('./routes/users');
 const { requireAuthentication } = require('./middleware/auth');
@@ -103,6 +104,7 @@ const createApp = (db) => {
   app.use('/account', createAccountRouter(db));
   app.use('/customers', createCustomersRouter(db));
   app.use('/transactions', createTransactionsRouter(db));
+  app.use('/inventory', createInventoryRouter(db));
   app.use('/users', createUsersRouter(db));
 
   app.use((_req, res) => {

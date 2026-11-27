@@ -241,6 +241,173 @@
     });
   }
 
+  const inventoryProductForm = document.getElementById(
+    'inventory-product-form',
+  );
+
+  if (inventoryProductForm) {
+    const productModalTitle = document.getElementById(
+      'inventory-product-title',
+    );
+
+    document.querySelectorAll('[data-product-create]').forEach((button) => {
+      button.addEventListener('click', () => {
+        inventoryProductForm.reset();
+        inventoryProductForm.action = '/inventory/products';
+        document.getElementById('inventory-category').value = 'Khác';
+        document.getElementById('inventory-cost-price').value = '0';
+        document.getElementById('inventory-promotion-value').value = '0';
+        productModalTitle.textContent = 'Thêm hàng hóa';
+      });
+    });
+
+    document.querySelectorAll('[data-product-edit]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const product = JSON.parse(button.dataset.productEdit);
+
+        inventoryProductForm.action = `/inventory/products/${product.id}`;
+        inventoryProductForm.elements.sku.value = product.sku;
+        inventoryProductForm.elements.name.value = product.name;
+        inventoryProductForm.elements.category.value = product.category;
+        inventoryProductForm.elements.unit.value = product.unit;
+        inventoryProductForm.elements.costPrice.value = product.cost_price;
+        inventoryProductForm.elements.salePrice.value = product.sale_price;
+        inventoryProductForm.elements.promotionType.value =
+          product.promotion_type || '';
+        inventoryProductForm.elements.promotionValue.value =
+          product.promotion_value;
+        inventoryProductForm.elements.promotionStartDate.value =
+          product.promotion_start_date || '';
+        inventoryProductForm.elements.promotionEndDate.value =
+          product.promotion_end_date || '';
+        productModalTitle.textContent = 'Chỉnh sửa hàng hóa';
+      });
+    });
+  }
+
+  const inventoryDocumentModal = document.getElementById(
+    'inventory-document-modal',
+  );
+
+  if (inventoryDocumentModal) {
+    const inventoryDocumentForm = document.getElementById(
+      'inventory-document-form',
+    );
+    const documentTypeInput = document.getElementById(
+      'inventory-document-type',
+    );
+    const documentTitle = document.getElementById(
+      'inventory-document-title',
+    );
+    const documentDateInput = document.getElementById(
+      'inventory-document-date',
+    );
+    const supplierContainer = document.getElementById(
+      'inventory-supplier-container',
+    );
+    const customerContainer = document.getElementById(
+      'inventory-customer-container',
+    );
+    const documentHelp = document.getElementById('inventory-document-help');
+    const linesContainer = document.getElementById('inventory-lines');
+    const lineTemplate = document.getElementById('inventory-line-template');
+    const products = JSON.parse(inventoryDocumentModal.dataset.products);
+
+    const addInventoryLine = () => {
+      const line = lineTemplate.content.firstElementChild.cloneNode(true);
+      const productSelect = line.querySelector('.inventory-product-select');
+      const priceInput = line.querySelector('.inventory-unit-price');
+
+      products.forEach((product) => {
+        const option = document.createElement('option');
+        option.value = product.id;
+        option.textContent =
+          `${product.name} (${product.sku}) · tồn ${product.stockQuantity} ${product.unit}` +
+          ` · bán ${currencyFormatter.format(product.effectiveSalePrice)}`;
+        option.dataset.costPrice = product.costPrice;
+        option.dataset.salePrice = product.effectiveSalePrice;
+        productSelect.append(option);
+      });
+
+      line
+        .querySelector('.inventory-remove-line')
+        .addEventListener('click', () => line.remove());
+      productSelect.addEventListener('change', () => {
+        const option = productSelect.selectedOptions[0];
+
+        if (option && documentTypeInput.value === 'PURCHASE') {
+          priceInput.value = option.dataset.costPrice || '0';
+        }
+      });
+      linesContainer.append(line);
+      refreshIcons();
+      updateInventoryDocumentType();
+    };
+
+    const updateInventoryDocumentType = () => {
+      const isPurchase = documentTypeInput.value === 'PURCHASE';
+
+      documentTitle.textContent = isPurchase
+        ? 'Lập phiếu nhập kho'
+        : 'Tạo đơn xuất / bán';
+      supplierContainer.classList.toggle('hidden', !isPurchase);
+      customerContainer.classList.toggle('hidden', isPurchase);
+      documentHelp.textContent = isPurchase
+        ? 'Tổng giá nhập sẽ tự tạo phiếu chi chờ Quản lý duyệt. Tồn kho và giá vốn bình quân chỉ cập nhật sau khi duyệt.'
+        : 'Giá bán và khuyến mại có hiệu lực theo ngày đơn hàng sẽ tự tạo phiếu thu chờ Quản lý duyệt. Tồn kho chỉ trừ sau khi duyệt.';
+
+      linesContainer.querySelectorAll('.inventory-line').forEach((line) => {
+        const priceContainer = line.querySelector(
+          '.inventory-unit-price-container',
+        );
+        const priceInput = line.querySelector('.inventory-unit-price');
+
+        priceContainer.classList.toggle('hidden', !isPurchase);
+        priceInput.required = isPurchase;
+        priceInput.disabled = !isPurchase;
+
+        if (!isPurchase) {
+          priceInput.value = '0';
+        } else {
+          const option = line.querySelector(
+            '.inventory-product-select',
+          ).selectedOptions[0];
+          if (option && option.dataset.costPrice) {
+            priceInput.value = option.dataset.costPrice;
+          }
+        }
+      });
+    };
+
+    document.querySelectorAll('[data-document-type]').forEach((button) => {
+      button.addEventListener('click', () => {
+        inventoryDocumentForm.reset();
+        linesContainer.replaceChildren();
+        documentTypeInput.value = button.dataset.documentType;
+        documentDateInput.value = new Date().toISOString().slice(0, 10);
+        addInventoryLine();
+      });
+    });
+
+    document
+      .getElementById('inventory-add-line')
+      .addEventListener('click', addInventoryLine);
+    documentTypeInput.addEventListener(
+      'change',
+      updateInventoryDocumentType,
+    );
+    inventoryDocumentForm.addEventListener('submit', (event) => {
+      const selectedProducts = Array.from(
+        linesContainer.querySelectorAll('.inventory-product-select'),
+      ).map((select) => select.value);
+
+      if (new Set(selectedProducts).size !== selectedProducts.length) {
+        event.preventDefault();
+        showToast('Một hàng hóa chỉ được chọn một lần trong cùng chứng từ.', 'error');
+      }
+    });
+  }
+
   const detailModalElement = document.getElementById('customer-details-modal');
 
   if (detailModalElement) {
@@ -373,29 +540,33 @@
     const labels = JSON.parse(chartCanvas.dataset.labels);
     const income = JSON.parse(chartCanvas.dataset.income);
     const expenses = JSON.parse(chartCanvas.dataset.expenses);
+    const datasets = [
+      {
+        label: 'Tổng thu',
+        data: income,
+        backgroundColor: '#10b981',
+        borderRadius: 7,
+        borderSkipped: false,
+        maxBarThickness: 30,
+      },
+    ];
+
+    if (chartCanvas.dataset.canViewCosts === 'true') {
+      datasets.push({
+        label: 'Tổng chi',
+        data: expenses,
+        backgroundColor: '#fb7185',
+        borderRadius: 7,
+        borderSkipped: false,
+        maxBarThickness: 30,
+      });
+    }
 
     new window.Chart(chartCanvas, {
       type: 'bar',
       data: {
         labels,
-        datasets: [
-          {
-            label: 'Tổng thu',
-            data: income,
-            backgroundColor: '#10b981',
-            borderRadius: 7,
-            borderSkipped: false,
-            maxBarThickness: 30,
-          },
-          {
-            label: 'Tổng chi',
-            data: expenses,
-            backgroundColor: '#fb7185',
-            borderRadius: 7,
-            borderSkipped: false,
-            maxBarThickness: 30,
-          },
-        ],
+        datasets,
       },
       options: {
         responsive: true,

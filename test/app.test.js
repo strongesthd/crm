@@ -878,6 +878,423 @@ test('grants managers administrator-level permissions', async (context) => {
   assert.match(rejectedCsv, /"Phiếu do quản lý từ chối"/);
 });
 
+test('links inventory documents to cashbook and limits cost visibility', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-finance-inventory-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const adminCookie = await login(baseUrl, adminUser, adminPass);
+  const adminCsrfToken = await getCsrfToken(baseUrl, adminCookie, '/users');
+  const managerPassword = 'inventory-manager-password';
+  const accountantPassword = 'inventory-accountant-password';
+  const cashierPassword = 'inventory-cashier-password';
+
+  await postForm(baseUrl, '/users', adminCookie, adminCsrfToken, {
+    fullName: 'Quản lý kho',
+    username: 'inventory.manager',
+    password: managerPassword,
+    role: 'manager',
+  });
+  await postForm(baseUrl, '/users', adminCookie, adminCsrfToken, {
+    fullName: 'Kế toán kho',
+    username: 'inventory.accountant',
+    password: accountantPassword,
+    role: 'accountant',
+  });
+  await postForm(baseUrl, '/users', adminCookie, adminCsrfToken, {
+    fullName: 'Thủ quỹ kho',
+    username: 'inventory.cashier',
+    password: cashierPassword,
+    role: 'cashier',
+  });
+
+  const managerCookie = await login(
+    baseUrl,
+    'inventory.manager',
+    managerPassword,
+  );
+  const accountantCookie = await login(
+    baseUrl,
+    'inventory.accountant',
+    accountantPassword,
+  );
+  const accountantCsrfToken = await getCsrfToken(
+    baseUrl,
+    accountantCookie,
+    '/inventory',
+  );
+  const accountantProductResponse = await postForm(
+    baseUrl,
+    '/inventory/products',
+    accountantCookie,
+    accountantCsrfToken,
+    {
+      sku: 'INV-ACC-001',
+      name: 'Sản phẩm kế toán',
+      category: 'Hàng mẫu',
+      unit: 'cái',
+      costPrice: '50',
+      salePrice: '100',
+    },
+  );
+
+  assert.equal(accountantProductResponse.status, 302);
+  const managerCsrfToken = await getCsrfToken(
+    baseUrl,
+    managerCookie,
+    '/inventory',
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const createProductResponse = await postForm(
+    baseUrl,
+    '/inventory/products',
+    managerCookie,
+    managerCsrfToken,
+    {
+      sku: 'INV-001',
+      name: 'Sản phẩm kiểm tra tồn',
+      category: 'Hàng mẫu',
+      unit: 'cái',
+      costPrice: '1000',
+      salePrice: '2000',
+      promotionType: 'percent',
+      promotionValue: '10',
+      promotionStartDate: today,
+      promotionEndDate: today,
+    },
+  );
+
+  assert.equal(createProductResponse.status, 302);
+  const productId = db
+    .prepare("SELECT id FROM products WHERE sku = 'INV-001'")
+    .get().id;
+  const rejectedPurchaseResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    managerCookie,
+    managerCsrfToken,
+    {
+      type: 'PURCHASE',
+      date: today,
+      partyName: 'Nhà cung cấp từ chối',
+      paymentStatus: 'Đã thanh toán',
+      productId: String(productId),
+      quantity: '10',
+      unitPrice: '1000',
+    },
+  );
+  const rejectedPurchase = db
+    .prepare(
+      `SELECT d.id, t.id AS transaction_id
+       FROM inventory_documents d
+       JOIN transactions t ON t.id = d.transaction_id
+       WHERE d.document_type = 'PURCHASE'
+         AND d.party_name = 'Nhà cung cấp từ chối'`,
+    )
+    .get();
+
+  assert.equal(rejectedPurchaseResponse.status, 302);
+  const rejectPurchaseResponse = await postForm(
+    baseUrl,
+    `/transactions/${rejectedPurchase.transaction_id}/reject`,
+    managerCookie,
+    managerCsrfToken,
+    { reason: 'Chứng từ nhập sai' },
+  );
+  assert.equal(rejectPurchaseResponse.status, 302);
+  assert.equal(
+    db.prepare('SELECT stock_quantity FROM products WHERE id = ?')
+      .get(productId).stock_quantity,
+    0,
+  );
+
+  const purchaseResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    managerCookie,
+    managerCsrfToken,
+    {
+      type: 'PURCHASE',
+      date: today,
+      partyName: 'Nhà cung cấp kiểm thử',
+      paymentStatus: 'Đã thanh toán',
+      productId: String(productId),
+      quantity: '10',
+      unitPrice: '1000',
+    },
+  );
+  const purchaseDocument = db
+    .prepare(
+      `SELECT d.id, d.approval_status, t.id AS transaction_id,
+        t.type, t.amount, t.approval_status AS transaction_status
+       FROM inventory_documents d
+       JOIN transactions t ON t.id = d.transaction_id
+       WHERE d.document_type = 'PURCHASE'
+         AND d.party_name = 'Nhà cung cấp kiểm thử'`,
+    )
+    .get();
+
+  assert.equal(purchaseResponse.status, 302);
+  assert.equal(purchaseDocument.approval_status, 'PENDING');
+  assert.equal(purchaseDocument.type, 'CHI');
+  assert.equal(purchaseDocument.amount, 10000);
+  assert.equal(purchaseDocument.transaction_status, 'PENDING');
+  assert.equal(
+    db.prepare('SELECT stock_quantity FROM products WHERE id = ?')
+      .get(productId).stock_quantity,
+    0,
+  );
+
+  const approvePurchaseResponse = await postForm(
+    baseUrl,
+    `/transactions/${purchaseDocument.transaction_id}/approve`,
+    managerCookie,
+    managerCsrfToken,
+  );
+
+  assert.equal(approvePurchaseResponse.status, 302);
+  assert.deepEqual(
+    db.prepare('SELECT stock_quantity, cost_price FROM products WHERE id = ?')
+      .get(productId),
+    { stock_quantity: 10, cost_price: 1000 },
+  );
+
+  const saleResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    managerCookie,
+    managerCsrfToken,
+    {
+      type: 'SALE',
+      date: today,
+      partyName: 'Khách mua thử',
+      customerId: '',
+      paymentStatus: 'Công nợ',
+      productId: String(productId),
+      quantity: '2',
+      unitPrice: '0',
+    },
+  );
+  const saleDocument = db
+    .prepare(
+      `SELECT d.id, d.approval_status, t.id AS transaction_id,
+        t.type, t.amount, t.payment_status, t.approval_status AS transaction_status
+       FROM inventory_documents d
+       JOIN transactions t ON t.id = d.transaction_id
+       WHERE d.document_type = 'SALE' AND d.party_name = 'Khách mua thử'`,
+    )
+    .get();
+
+  assert.equal(saleResponse.status, 302);
+  assert.equal(saleDocument.approval_status, 'PENDING');
+  assert.equal(saleDocument.type, 'THU');
+  assert.equal(saleDocument.amount, 3600);
+  assert.equal(saleDocument.payment_status, 'Công nợ');
+  assert.equal(saleDocument.transaction_status, 'PENDING');
+  assert.equal(
+    db.prepare('SELECT stock_quantity FROM products WHERE id = ?')
+      .get(productId).stock_quantity,
+    10,
+  );
+
+  const insufficientSaleResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    managerCookie,
+    managerCsrfToken,
+    {
+      type: 'SALE',
+      date: today,
+      partyName: 'Đơn vượt tồn',
+      paymentStatus: 'Đã thanh toán',
+      productId: String(productId),
+      quantity: '11',
+      unitPrice: '0',
+    },
+  );
+
+  assert.equal(insufficientSaleResponse.status, 409);
+
+  const cashierCookie = await login(
+    baseUrl,
+    'inventory.cashier',
+    cashierPassword,
+  );
+  const cashierInventoryResponse = await fetch(`${baseUrl}/inventory`, {
+    headers: { cookie: cashierCookie },
+  });
+  const cashierInventoryHtml = await cashierInventoryResponse.text();
+  const cashierCsrfToken = extractCsrfToken(cashierInventoryHtml);
+  const cashierProductResponse = await postForm(
+    baseUrl,
+    '/inventory/products',
+    cashierCookie,
+    cashierCsrfToken,
+    {
+      sku: 'BLOCKED-001',
+      name: 'Không được tạo',
+      category: 'Hàng mẫu',
+      unit: 'cái',
+      costPrice: '1',
+      salePrice: '2',
+    },
+  );
+
+  assert.equal(cashierInventoryResponse.status, 200);
+  assert.match(cashierInventoryHtml, /Sản phẩm kiểm tra tồn/);
+  assert.match(cashierInventoryHtml, /10 cái/);
+  assert.doesNotMatch(
+    cashierInventoryHtml,
+    /Giá vốn|Lãi gộp|Giá trị tồn|1\.000 ₫|10\.000 ₫/,
+  );
+  assert.equal(cashierProductResponse.status, 403);
+  const cashierDocumentResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    cashierCookie,
+    cashierCsrfToken,
+    {
+      type: 'PURCHASE',
+      date: today,
+      partyName: 'Không được nhập kho',
+      paymentStatus: 'Đã thanh toán',
+      productId: String(productId),
+      quantity: '1',
+      unitPrice: '1',
+    },
+  );
+  assert.equal(cashierDocumentResponse.status, 403);
+
+  const cashierTransactionsResponse = await fetch(
+    `${baseUrl}/transactions`,
+    { headers: { cookie: cashierCookie } },
+  );
+  const cashierTransactionsHtml = await cashierTransactionsResponse.text();
+  const cashierCsvResponse = await fetch(
+    `${baseUrl}/transactions/export.csv?type=CHI`,
+    { headers: { cookie: cashierCookie } },
+  );
+  const cashierCsv = await cashierCsvResponse.text();
+  const purchaseCsvRow = cashierCsv
+    .split(/\r?\n/)
+    .find((row) => row.startsWith(`"${purchaseDocument.transaction_id}"`));
+  const cashierDashboardResponse = await fetch(`${baseUrl}/`, {
+    headers: { cookie: cashierCookie },
+  });
+  const cashierDashboardHtml = await cashierDashboardResponse.text();
+
+  assert.equal(cashierTransactionsResponse.status, 200);
+  assert.doesNotMatch(cashierTransactionsHtml, /10\.000 ₫/);
+  assert.match(cashierTransactionsHtml, /Bảo mật/);
+  assert.ok(purchaseCsvRow);
+  assert.equal(purchaseCsvRow.split('","')[2], '');
+  assert.match(purchaseCsvRow, /Chi phí nhập kho/);
+  assert.equal(cashierDashboardResponse.status, 200);
+  assert.doesNotMatch(
+    cashierDashboardHtml,
+    /Lợi nhuận ròng|Tổng chi đã thanh toán/,
+  );
+  assert.match(cashierDashboardHtml, /data-expenses="\[\]"/);
+
+  const accountantInventoryResponse = await fetch(`${baseUrl}/inventory`, {
+    headers: { cookie: accountantCookie },
+  });
+  const accountantInventoryHtml = await accountantInventoryResponse.text();
+
+  assert.equal(accountantInventoryResponse.status, 200);
+  assert.match(accountantInventoryHtml, /Giá vốn/);
+  assert.match(accountantInventoryHtml, /Lãi gộp/);
+
+  const approveSaleResponse = await postForm(
+    baseUrl,
+    `/transactions/${saleDocument.transaction_id}/approve`,
+    managerCookie,
+    managerCsrfToken,
+  );
+  const approvedSale = db
+    .prepare(
+      `SELECT d.approval_status, t.approval_status AS transaction_status
+       FROM inventory_documents d
+       JOIN transactions t ON t.id = d.transaction_id
+       WHERE d.id = ?`,
+    )
+    .get(saleDocument.id);
+
+  assert.equal(approveSaleResponse.status, 302);
+  assert.deepEqual(approvedSale, {
+    approval_status: 'APPROVED',
+    transaction_status: 'APPROVED',
+  });
+  assert.equal(
+    db
+      .prepare(
+        `SELECT unit_cost FROM inventory_document_items
+         WHERE document_id = ?`,
+      )
+      .get(saleDocument.id).unit_cost,
+    1000,
+  );
+  assert.equal(
+    db
+      .prepare(
+        `SELECT SUM(ROUND(
+           quantity * (unit_price - discount_per_unit - unit_cost), 0
+         )) AS gross_profit
+         FROM inventory_document_items
+         WHERE document_id = ?`,
+      )
+      .get(saleDocument.id).gross_profit,
+    1600,
+  );
+  assert.equal(
+    db.prepare('SELECT stock_quantity FROM products WHERE id = ?')
+      .get(productId).stock_quantity,
+    8,
+  );
+
+  const linkedTransactionEditResponse = await postForm(
+    baseUrl,
+    `/transactions/${saleDocument.transaction_id}`,
+    adminCookie,
+    adminCsrfToken,
+    {
+      type: 'THU',
+      amount: '1',
+      category: 'Bán hàng',
+      description: 'Sửa ngoài kho',
+      transactionDate: today,
+      paymentStatus: 'Công nợ',
+      customerId: '',
+    },
+  );
+  const financeTransactionDeleteResponse = await postForm(
+    baseUrl,
+    `/transactions/${saleDocument.transaction_id}/delete`,
+    adminCookie,
+    adminCsrfToken,
+  );
+
+  assert.equal(linkedTransactionEditResponse.status, 403);
+  assert.equal(financeTransactionDeleteResponse.status, 409);
+});
+
 test('migrates existing users and transactions without losing records', () => {
   const temporaryDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'internal-crm-finance-migration-test-'),
