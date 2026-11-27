@@ -8,6 +8,18 @@ const { isValidDate } = require('./transactions');
 
 const INVENTORY_ROLES = ['admin', 'manager', 'accountant'];
 const MAX_AMOUNT = 9_000_000_000_000;
+const OPTION_TYPES = {
+  categories: {
+    label: 'Danh mục',
+    productColumn: 'category',
+    table: 'inventory_categories',
+  },
+  units: {
+    label: 'Đơn vị tính',
+    productColumn: 'unit',
+    table: 'inventory_units',
+  },
+};
 
 const createInventoryRouter = (db) => {
   const router = express.Router();
@@ -93,11 +105,31 @@ const createInventoryRouter = (db) => {
     const customers = canManageInventory
       ? db.prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE').all()
       : [];
+    const categories = db
+      .prepare(
+        `SELECT c.id, c.name, COUNT(p.id) AS product_count
+         FROM inventory_categories c
+         LEFT JOIN products p ON p.category COLLATE NOCASE = c.name
+         GROUP BY c.id
+         ORDER BY c.name COLLATE NOCASE`,
+      )
+      .all();
+    const units = db
+      .prepare(
+        `SELECT u.id, u.name, COUNT(p.id) AS product_count
+         FROM inventory_units u
+         LEFT JOIN products p ON p.unit COLLATE NOCASE = u.name
+         GROUP BY u.id
+         ORDER BY u.name COLLATE NOCASE`,
+      )
+      .all();
 
     res.render('inventory', {
       title: 'Quản lý kho',
       activePage: 'inventory',
       products,
+      categories,
+      units,
       productsForForms: canManageInventory
         ? products
             .filter((product) => product.is_active)
@@ -121,10 +153,101 @@ const createInventoryRouter = (db) => {
   });
 
   router.post(
+    '/options/:type',
+    requireRoles(...INVENTORY_ROLES),
+    (req, res) => {
+      const optionType = Object.prototype.hasOwnProperty.call(
+        OPTION_TYPES,
+        req.params.type,
+      )
+        ? OPTION_TYPES[req.params.type]
+        : null;
+
+      if (!optionType) {
+        throw createHttpError(404, 'Không tìm thấy loại lựa chọn.');
+      }
+
+      const name = readText(
+        req.body.name,
+        optionType.label,
+        req.params.type === 'categories' ? 100 : 30,
+      );
+
+      try {
+        db.prepare(`INSERT INTO ${optionType.table} (name) VALUES (?)`).run(name);
+      } catch (error) {
+        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+          throw createHttpError(409, `${optionType.label} này đã tồn tại.`);
+        }
+
+        throw error;
+      }
+
+      setFlash(req, 'success', `Đã thêm ${optionType.label.toLowerCase()} "${name}".`);
+      res.redirect('/inventory');
+    },
+  );
+
+  router.post(
+    '/options/:type/:id/delete',
+    requireRoles(...INVENTORY_ROLES),
+    (req, res) => {
+      const optionType = Object.prototype.hasOwnProperty.call(
+        OPTION_TYPES,
+        req.params.type,
+      )
+        ? OPTION_TYPES[req.params.type]
+        : null;
+
+      if (!optionType) {
+        throw createHttpError(404, 'Không tìm thấy loại lựa chọn.');
+      }
+
+      const optionId = parseRecordId(req.params.id);
+      const option = db
+        .prepare(`SELECT id, name FROM ${optionType.table} WHERE id = ?`)
+        .get(optionId);
+
+      if (!option) {
+        throw createHttpError(404, `Không tìm thấy ${optionType.label.toLowerCase()}.`);
+      }
+
+      const optionCount = db
+        .prepare(`SELECT COUNT(*) AS count FROM ${optionType.table}`)
+        .get();
+
+      if (optionCount.count === 1) {
+        throw createHttpError(
+          409,
+          `Phải giữ lại ít nhất một ${optionType.label.toLowerCase()}.`,
+        );
+      }
+
+      const usage = db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM products
+           WHERE ${optionType.productColumn} COLLATE NOCASE = ?`,
+        )
+        .get(option.name);
+
+      if (usage.count > 0) {
+        throw createHttpError(
+          409,
+          `Không thể xóa ${optionType.label.toLowerCase()} "${option.name}" vì đang được ${usage.count} hàng hóa sử dụng.`,
+        );
+      }
+
+      db.prepare(`DELETE FROM ${optionType.table} WHERE id = ?`).run(optionId);
+      setFlash(req, 'success', `Đã xóa ${optionType.label.toLowerCase()} "${option.name}".`);
+      res.redirect('/inventory');
+    },
+  );
+
+  router.post(
     '/products',
     requireRoles(...INVENTORY_ROLES),
     (req, res) => {
-      const product = readProduct(req.body);
+      const product = readProduct(req.body, db);
 
       try {
         db.prepare(
@@ -163,7 +286,7 @@ const createInventoryRouter = (db) => {
     requireRoles(...INVENTORY_ROLES),
     (req, res) => {
       const productId = parseRecordId(req.params.id);
-      const product = readProduct(req.body);
+      const product = readProduct(req.body, db);
 
       try {
         const result = db
@@ -303,7 +426,7 @@ const createInventoryRouter = (db) => {
   return router;
 };
 
-const readProduct = (body) => {
+const readProduct = (body, db) => {
   const sku = readText(body.sku, 'Mã hàng', 80);
   const name = readText(body.name, 'Tên hàng hóa', 160);
   const category = readText(body.category, 'Danh mục', 100);
@@ -323,6 +446,16 @@ const readProduct = (body) => {
 
   if (!sku || !name || !category || !unit) {
     throw createHttpError(400, 'Vui lòng nhập đầy đủ thông tin hàng hóa.');
+  }
+
+  if (
+    !db.prepare('SELECT 1 FROM inventory_categories WHERE name = ?').get(category)
+  ) {
+    throw createHttpError(400, 'Danh mục được chọn không hợp lệ.');
+  }
+
+  if (!db.prepare('SELECT 1 FROM inventory_units WHERE name = ?').get(unit)) {
+    throw createHttpError(400, 'Đơn vị tính được chọn không hợp lệ.');
   }
 
   if (

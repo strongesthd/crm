@@ -38,6 +38,10 @@ các tài khoản cũ được giữ lại và giao dịch cũ được đánh d
 
 Trang **Quản lý kho** cho phép tạo hàng hóa, cập nhật mã hàng, đơn vị tính,
 giá vốn, giá bán và khuyến mại theo phần trăm hoặc số tiền trong khoảng ngày.
+Danh mục và đơn vị tính được chọn từ danh sách có thể thêm tùy chọn mới; chỉ
+xóa được lựa chọn chưa được hàng hóa sử dụng và hệ thống luôn giữ ít nhất một
+lựa chọn mỗi loại. Danh mục và đơn vị tính đang có sẽ được giữ lại khi nâng
+cấp dữ liệu hiện tại.
 Quản trị viên, Quản lý và Kế toán lập phiếu nhập hoặc đơn bán nhiều mặt hàng.
 Phiếu nhập tự tạo giao dịch chi; đơn bán áp dụng giá bán/khuyến mại và tự tạo
 giao dịch thu. Cả hai giao dịch được liên kết với chứng từ kho và chờ Quản lý

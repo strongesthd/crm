@@ -254,7 +254,18 @@
       button.addEventListener('click', () => {
         inventoryProductForm.reset();
         inventoryProductForm.action = '/inventory/products';
-        document.getElementById('inventory-category').value = 'Khác';
+        const categorySelect = document.getElementById('inventory-category');
+        const unitSelect = document.getElementById('inventory-unit');
+        categorySelect.value = Array.from(categorySelect.options).some(
+          (option) => option.value === 'Khác',
+        )
+          ? 'Khác'
+          : categorySelect.options[0].value;
+        unitSelect.value = Array.from(unitSelect.options).some(
+          (option) => option.value === 'Cái',
+        )
+          ? 'Cái'
+          : unitSelect.options[0].value;
         document.getElementById('inventory-cost-price').value = '0';
         document.getElementById('inventory-promotion-value').value = '0';
         productModalTitle.textContent = 'Thêm hàng hóa';

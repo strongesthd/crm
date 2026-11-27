@@ -6,6 +6,9 @@
   </div>
   <% if (canManageInventory) { %>
     <div class="flex flex-wrap gap-2">
+      <button type="button" data-modal-target="inventory-options-modal" data-modal-toggle="inventory-options-modal" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <i data-lucide="list-plus" class="h-4 w-4"></i>Danh mục & đơn vị
+      </button>
       <button type="button" data-modal-target="inventory-document-modal" data-modal-toggle="inventory-document-modal" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-document-type="PURCHASE">
         <i data-lucide="package-plus" class="h-4 w-4 text-emerald-600"></i>Nhập kho
       </button>
@@ -121,6 +124,69 @@
 </section>
 
 <% if (canManageInventory) { %>
+<div id="inventory-options-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-3xl">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 class="text-lg font-semibold text-slate-900">Quản lý danh mục và đơn vị tính</h3><p class="mt-1 text-sm text-slate-500">Chỉ xóa được lựa chọn chưa được hàng hóa nào sử dụng.</p></div>
+        <button type="button" data-modal-hide="inventory-options-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <div class="grid gap-6 p-6 md:grid-cols-2">
+        <section>
+          <h4 class="mb-3 text-sm font-semibold text-slate-800">Danh mục</h4>
+          <form method="post" action="/inventory/options/categories" class="mb-4 flex gap-2">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input name="name" required maxlength="100" class="form-input" placeholder="Tên danh mục" aria-label="Tên danh mục mới">
+            <button type="submit" class="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Thêm</button>
+          </form>
+          <ul class="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <% categories.forEach((category) => { %>
+              <li class="flex items-center justify-between gap-3 px-3 py-2.5">
+                <span class="text-sm text-slate-700"><%= category.name %></span>
+                <% if (category.product_count === 0 && categories.length > 1) { %>
+                  <form method="post" action="/inventory/options/categories/<%= category.id %>/delete" data-confirm-delete data-confirm-message="Xóa danh mục này?">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">Xóa</button>
+                  </form>
+                <% } else if (category.product_count > 0) { %>
+                  <span class="text-xs text-slate-400">Đang dùng · <%= category.product_count %></span>
+                <% } else { %>
+                  <span class="text-xs text-slate-400">Cần giữ lại một lựa chọn</span>
+                <% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </section>
+        <section>
+          <h4 class="mb-3 text-sm font-semibold text-slate-800">Đơn vị tính</h4>
+          <form method="post" action="/inventory/options/units" class="mb-4 flex gap-2">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input name="name" required maxlength="30" class="form-input" placeholder="Tên đơn vị" aria-label="Tên đơn vị tính mới">
+            <button type="submit" class="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Thêm</button>
+          </form>
+          <ul class="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <% units.forEach((unit) => { %>
+              <li class="flex items-center justify-between gap-3 px-3 py-2.5">
+                <span class="text-sm text-slate-700"><%= unit.name %></span>
+                <% if (unit.product_count === 0 && units.length > 1) { %>
+                  <form method="post" action="/inventory/options/units/<%= unit.id %>/delete" data-confirm-delete data-confirm-message="Xóa đơn vị tính này?">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">Xóa</button>
+                  </form>
+                <% } else if (unit.product_count > 0) { %>
+                  <span class="text-xs text-slate-400">Đang dùng · <%= unit.product_count %></span>
+                <% } else { %>
+                  <span class="text-xs text-slate-400">Cần giữ lại một lựa chọn</span>
+                <% } %>
+              </li>
+            <% }) %>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="inventory-product-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
   <div class="relative max-h-full w-full max-w-2xl">
     <div class="relative rounded-2xl bg-white shadow-xl">
@@ -132,8 +198,8 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div><label for="inventory-sku" class="form-label">Mã hàng *</label><input id="inventory-sku" name="sku" required maxlength="80" class="form-input"></div>
         <div><label for="inventory-name" class="form-label">Tên hàng hóa *</label><input id="inventory-name" name="name" required maxlength="160" class="form-input"></div>
-        <div><label for="inventory-category" class="form-label">Danh mục *</label><input id="inventory-category" name="category" required maxlength="100" class="form-input" value="Khác"></div>
-        <div><label for="inventory-unit" class="form-label">Đơn vị tính *</label><input id="inventory-unit" name="unit" required maxlength="30" class="form-input" placeholder="Cái, hộp, kg..."></div>
+        <div><label for="inventory-category" class="form-label">Danh mục *</label><select id="inventory-category" name="category" required class="form-input"><% categories.forEach((category) => { %><option value="<%= category.name %>" <%= category.name === 'Khác' ? 'selected' : '' %>><%= category.name %></option><% }) %></select></div>
+        <div><label for="inventory-unit" class="form-label">Đơn vị tính *</label><select id="inventory-unit" name="unit" required class="form-input"><% units.forEach((unit) => { %><option value="<%= unit.name %>" <%= unit.name === 'Cái' ? 'selected' : '' %>><%= unit.name %></option><% }) %></select></div>
         <div><label for="inventory-cost-price" class="form-label">Giá vốn hiện tại (VNĐ) *</label><input id="inventory-cost-price" name="costPrice" type="number" min="0" max="9000000000000" step="1" required class="form-input" value="0"></div>
         <div><label for="inventory-sale-price" class="form-label">Giá bán (VNĐ) *</label><input id="inventory-sale-price" name="salePrice" type="number" min="1" max="9000000000000" step="1" required class="form-input"></div>
         <div>

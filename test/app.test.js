@@ -940,6 +940,61 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     accountantCookie,
     '/inventory',
   );
+  const managerCsrfToken = await getCsrfToken(
+    baseUrl,
+    managerCookie,
+    '/inventory',
+  );
+  const initialInventoryResponse = await fetch(`${baseUrl}/inventory`, {
+    headers: { cookie: managerCookie },
+  });
+  const initialInventoryHtml = await initialInventoryResponse.text();
+
+  assert.match(initialInventoryHtml, /<select id="inventory-category"/);
+  assert.match(initialInventoryHtml, /<select id="inventory-unit"/);
+
+  for (const [type, name] of [
+    ['categories', 'Phụ kiện'],
+    ['units', 'Bộ'],
+  ]) {
+    const response = await postForm(
+      baseUrl,
+      `/inventory/options/${type}`,
+      managerCookie,
+      managerCsrfToken,
+      { name },
+    );
+
+    assert.equal(response.status, 302);
+  }
+
+  for (const [type, name] of [
+    ['categories', 'Danh mục tạm'],
+    ['units', 'Đơn vị tạm'],
+  ]) {
+    const createResponse = await postForm(
+      baseUrl,
+      `/inventory/options/${type}`,
+      managerCookie,
+      managerCsrfToken,
+      { name },
+    );
+    assert.equal(createResponse.status, 302);
+
+    const table =
+      type === 'categories' ? 'inventory_categories' : 'inventory_units';
+    const optionId = db
+      .prepare(`SELECT id FROM ${table} WHERE name = ?`)
+      .get(name).id;
+    const deleteResponse = await postForm(
+      baseUrl,
+      `/inventory/options/${type}/${optionId}/delete`,
+      managerCookie,
+      managerCsrfToken,
+    );
+    assert.equal(deleteResponse.status, 302);
+  }
+
   const accountantProductResponse = await postForm(
     baseUrl,
     '/inventory/products',
@@ -948,19 +1003,14 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     {
       sku: 'INV-ACC-001',
       name: 'Sản phẩm kế toán',
-      category: 'Hàng mẫu',
-      unit: 'cái',
+      category: 'Phụ kiện',
+      unit: 'Bộ',
       costPrice: '50',
       salePrice: '100',
     },
   );
 
   assert.equal(accountantProductResponse.status, 302);
-  const managerCsrfToken = await getCsrfToken(
-    baseUrl,
-    managerCookie,
-    '/inventory',
-  );
   const today = new Date().toISOString().slice(0, 10);
   const createProductResponse = await postForm(
     baseUrl,
@@ -970,8 +1020,8 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     {
       sku: 'INV-001',
       name: 'Sản phẩm kiểm tra tồn',
-      category: 'Hàng mẫu',
-      unit: 'cái',
+      category: 'Phụ kiện',
+      unit: 'Bộ',
       costPrice: '1000',
       salePrice: '2000',
       promotionType: 'percent',
@@ -985,6 +1035,24 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   const productId = db
     .prepare("SELECT id FROM products WHERE sku = 'INV-001'")
     .get().id;
+  for (const [type, name] of [
+    ['categories', 'Phụ kiện'],
+    ['units', 'Bộ'],
+  ]) {
+    const table =
+      type === 'categories' ? 'inventory_categories' : 'inventory_units';
+    const optionId = db
+      .prepare(`SELECT id FROM ${table} WHERE name = ?`)
+      .get(name).id;
+    const deleteResponse = await postForm(
+      baseUrl,
+      `/inventory/options/${type}/${optionId}/delete`,
+      managerCookie,
+      managerCsrfToken,
+    );
+    assert.equal(deleteResponse.status, 409);
+  }
+
   const rejectedPurchaseResponse = await postForm(
     baseUrl,
     '/inventory/documents',
@@ -1150,21 +1218,29 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     {
       sku: 'BLOCKED-001',
       name: 'Không được tạo',
-      category: 'Hàng mẫu',
-      unit: 'cái',
+      category: 'Phụ kiện',
+      unit: 'Bộ',
       costPrice: '1',
       salePrice: '2',
     },
   );
+  const cashierOptionResponse = await postForm(
+    baseUrl,
+    '/inventory/options/categories',
+    cashierCookie,
+    cashierCsrfToken,
+    { name: 'Danh mục không được phép' },
+  );
 
   assert.equal(cashierInventoryResponse.status, 200);
   assert.match(cashierInventoryHtml, /Sản phẩm kiểm tra tồn/);
-  assert.match(cashierInventoryHtml, /10 cái/);
+  assert.match(cashierInventoryHtml, /10 Bộ/);
   assert.doesNotMatch(
     cashierInventoryHtml,
     /Giá vốn|Lãi gộp|Giá trị tồn|1\.000 ₫|10\.000 ₫/,
   );
   assert.equal(cashierProductResponse.status, 403);
+  assert.equal(cashierOptionResponse.status, 403);
   const cashierDocumentResponse = await postForm(
     baseUrl,
     '/inventory/documents',
@@ -1295,7 +1371,7 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   assert.equal(financeTransactionDeleteResponse.status, 409);
 });
 
-test('migrates existing users and transactions without losing records', () => {
+test('preserves CRM records and inventory options during migrations', () => {
   const temporaryDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'internal-crm-finance-migration-test-'),
   );
@@ -1342,7 +1418,7 @@ test('migrates existing users and transactions without losing records', () => {
   `);
   legacyDb.close();
 
-  const migratedDb = createDatabase({
+  let migratedDb = createDatabase({
     adminPass,
     adminUser,
     databasePath: temporaryDirectory,
@@ -1365,6 +1441,50 @@ test('migrates existing users and transactions without losing records', () => {
         amount: 2000,
         customer_name: 'Khách hàng cũ',
       },
+    );
+    migratedDb.prepare(
+      "DELETE FROM inventory_categories WHERE name = 'Thiết bị'",
+    ).run();
+    migratedDb.prepare("DELETE FROM inventory_units WHERE name = 'Mét'").run();
+    migratedDb.prepare(
+      `INSERT INTO products
+        (sku, name, category, unit, cost_price, sale_price)
+       VALUES ('LEGACY-001', 'Hàng cũ', 'Nhóm cũ', 'Thùng carton', 10, 20)`,
+    ).run();
+    migratedDb.close();
+    migratedDb = createDatabase({
+      adminPass,
+      adminUser,
+      databasePath: temporaryDirectory,
+    });
+
+    assert.equal(
+      migratedDb
+        .prepare("SELECT 1 FROM inventory_categories WHERE name = 'Thiết bị'")
+        .get(),
+      undefined,
+    );
+    assert.equal(
+      migratedDb
+        .prepare("SELECT 1 FROM inventory_units WHERE name = 'Mét'")
+        .get(),
+      undefined,
+    );
+    assert.ok(
+      migratedDb
+        .prepare("SELECT 1 FROM inventory_categories WHERE name = 'Nhóm cũ'")
+        .get(),
+    );
+    assert.ok(
+      migratedDb
+        .prepare("SELECT 1 FROM inventory_units WHERE name = 'Thùng carton'")
+        .get(),
+    );
+    assert.deepEqual(
+      migratedDb
+        .prepare("SELECT category, unit FROM products WHERE sku = 'LEGACY-001'")
+        .get(),
+      { category: 'Nhóm cũ', unit: 'Thùng carton' },
     );
   } finally {
     migratedDb.close();

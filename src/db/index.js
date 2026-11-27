@@ -37,6 +37,20 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
   const filePath = path.join(databasePath, 'database.sqlite');
   const isNewDatabase = !fs.existsSync(filePath);
   const db = new Database(filePath);
+  const hadInventoryCategories = Boolean(
+    db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'inventory_categories'",
+      )
+      .get(),
+  );
+  const hadInventoryUnits = Boolean(
+    db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'inventory_units'",
+      )
+      .get(),
+  );
 
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -100,6 +114,18 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS inventory_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_units (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS inventory_documents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       document_type TEXT NOT NULL CHECK (document_type IN ('PURCHASE', 'SALE')),
@@ -156,6 +182,53 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
 
   ensureColumn(db, 'users', 'role', "TEXT NOT NULL DEFAULT 'admin'");
   ensureColumn(db, 'users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  const insertCategory = db.prepare(
+    'INSERT OR IGNORE INTO inventory_categories (name) VALUES (?)',
+  );
+  const insertUnit = db.prepare(
+    'INSERT OR IGNORE INTO inventory_units (name) VALUES (?)',
+  );
+
+  if (!hadInventoryCategories) {
+    for (const category of [
+      'Khác',
+      'Đồ uống',
+      'Thực phẩm',
+      'Văn phòng phẩm',
+      'Thiết bị',
+    ]) {
+      insertCategory.run(category);
+    }
+  }
+  if (!hadInventoryUnits) {
+    for (const unit of ['Cái', 'Hộp', 'Kg', 'Gói', 'Thùng', 'Chai', 'Mét']) {
+      insertUnit.run(unit);
+    }
+  }
+  db.exec(`
+    INSERT OR IGNORE INTO inventory_categories (name)
+    SELECT DISTINCT category FROM products WHERE TRIM(category) <> '';
+    INSERT OR IGNORE INTO inventory_units (name)
+    SELECT DISTINCT unit FROM products WHERE TRIM(unit) <> '';
+    UPDATE products
+    SET category = (
+      SELECT name FROM inventory_categories
+      WHERE name = products.category COLLATE NOCASE LIMIT 1
+    )
+    WHERE EXISTS (
+      SELECT 1 FROM inventory_categories
+      WHERE name = products.category COLLATE NOCASE
+    );
+    UPDATE products
+    SET unit = (
+      SELECT name FROM inventory_units
+      WHERE name = products.unit COLLATE NOCASE LIMIT 1
+    )
+    WHERE EXISTS (
+      SELECT 1 FROM inventory_units
+      WHERE name = products.unit COLLATE NOCASE
+    );
+  `);
   ensureColumn(
     db,
     'transactions',
