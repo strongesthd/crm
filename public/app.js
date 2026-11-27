@@ -34,26 +34,13 @@
     );
   }
 
-  const submitDeleteForm = (form) => {
-    const modal = document.getElementById(
-      form.dataset.closeModalOnDelete || '',
-    );
-    const closeButton = modal && modal.querySelector('[data-modal-hide]');
-
-    if (closeButton) {
-      closeButton.click();
-    }
-
-    form.submit();
-  };
-
   document.querySelectorAll('[data-confirm-delete]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
 
       if (!window.Swal) {
         if (window.confirm(form.dataset.confirmMessage)) {
-          submitDeleteForm(form);
+          form.submit();
         }
 
         return;
@@ -72,10 +59,17 @@
       });
 
       if (result.isConfirmed) {
-        submitDeleteForm(form);
+        form.submit();
       }
     });
   });
+
+  const inventoryOptionsAutoOpen = document.getElementById(
+    'inventory-options-auto-open',
+  );
+  if (inventoryOptionsAutoOpen) {
+    inventoryOptionsAutoOpen.click();
+  }
 
   const customerForm = document.getElementById('customer-form');
 

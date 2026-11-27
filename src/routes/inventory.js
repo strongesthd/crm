@@ -130,6 +130,7 @@ const createInventoryRouter = (db) => {
       products,
       categories,
       units,
+      showInventoryOptionsModal: req.query.manageOptions === '1',
       productsForForms: canManageInventory
         ? products
             .filter((product) => product.is_active)
@@ -184,7 +185,7 @@ const createInventoryRouter = (db) => {
       }
 
       setFlash(req, 'success', `Đã thêm ${optionType.label.toLowerCase()} "${name}".`);
-      res.redirect('/inventory');
+      res.redirect('/inventory?manageOptions=1');
     },
   );
 
@@ -239,7 +240,7 @@ const createInventoryRouter = (db) => {
 
       db.prepare(`DELETE FROM ${optionType.table} WHERE id = ?`).run(optionId);
       setFlash(req, 'success', `Đã xóa ${optionType.label.toLowerCase()} "${option.name}".`);
-      res.redirect('/inventory');
+      res.redirect('/inventory?manageOptions=1');
     },
   );
 

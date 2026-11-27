@@ -952,6 +952,7 @@ test('links inventory documents to cashbook and limits cost visibility', async (
 
   assert.match(initialInventoryHtml, /<select id="inventory-category"/);
   assert.match(initialInventoryHtml, /<select id="inventory-unit"/);
+  assert.doesNotMatch(initialInventoryHtml, /id="inventory-options-auto-open"/);
 
   for (const [type, name] of [
     ['categories', 'Phụ kiện'],
@@ -966,7 +967,19 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     );
 
     assert.equal(response.status, 302);
+    assert.equal(
+      response.headers.get('location'),
+      '/inventory?manageOptions=1',
+    );
   }
+  const optionsModalResponse = await fetch(
+    `${baseUrl}/inventory?manageOptions=1`,
+    { headers: { cookie: managerCookie } },
+  );
+  assert.match(
+    await optionsModalResponse.text(),
+    /id="inventory-options-auto-open"/,
+  );
 
   for (const [type, name] of [
     ['categories', 'Danh mục tạm'],
@@ -980,6 +993,10 @@ test('links inventory documents to cashbook and limits cost visibility', async (
       { name },
     );
     assert.equal(createResponse.status, 302);
+    assert.equal(
+      createResponse.headers.get('location'),
+      '/inventory?manageOptions=1',
+    );
 
     const table =
       type === 'categories' ? 'inventory_categories' : 'inventory_units';
@@ -993,6 +1010,10 @@ test('links inventory documents to cashbook and limits cost visibility', async (
       managerCsrfToken,
     );
     assert.equal(deleteResponse.status, 302);
+    assert.equal(
+      deleteResponse.headers.get('location'),
+      '/inventory?manageOptions=1',
+    );
   }
 
   const accountantProductResponse = await postForm(
