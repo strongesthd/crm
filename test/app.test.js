@@ -952,6 +952,15 @@ test('links inventory documents to cashbook and limits cost visibility', async (
 
   assert.match(initialInventoryHtml, /<select id="inventory-category"/);
   assert.match(initialInventoryHtml, /<select id="inventory-unit"/);
+  assert.match(initialInventoryHtml, /role="tablist"/);
+  assert.match(
+    initialInventoryHtml,
+    /id="inventory-products-tab"[^>]*aria-selected="true"/,
+  );
+  assert.match(
+    initialInventoryHtml,
+    /id="inventory-documents-panel"[^>]*class="panel-card hidden"/,
+  );
   assert.doesNotMatch(initialInventoryHtml, /id="inventory-options-auto-open"/);
 
   for (const [type, name] of [

@@ -71,6 +71,51 @@
     inventoryOptionsAutoOpen.click();
   }
 
+  const inventoryTabButtons = Array.from(
+    document.querySelectorAll('[data-inventory-tab]'),
+  );
+  const activateInventoryTab = (activeButton) => {
+    inventoryTabButtons.forEach((button) => {
+      const isActive = button === activeButton;
+      const panel = document.getElementById(button.getAttribute('aria-controls'));
+
+      button.setAttribute('aria-selected', String(isActive));
+      button.tabIndex = isActive ? 0 : -1;
+      button.classList.toggle('border-indigo-600', isActive);
+      button.classList.toggle('border-transparent', !isActive);
+      button.classList.toggle('text-indigo-700', isActive);
+      button.classList.toggle('text-slate-500', !isActive);
+      if (panel) {
+        panel.classList.toggle('hidden', !isActive);
+      }
+    });
+  };
+
+  inventoryTabButtons.forEach((button, index) => {
+    button.addEventListener('click', () => activateInventoryTab(button));
+    button.addEventListener('keydown', (event) => {
+      let nextIndex;
+
+      if (event.key === 'ArrowRight') {
+        nextIndex = (index + 1) % inventoryTabButtons.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex =
+          (index - 1 + inventoryTabButtons.length) %
+          inventoryTabButtons.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = inventoryTabButtons.length - 1;
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      inventoryTabButtons[nextIndex].focus();
+      activateInventoryTab(inventoryTabButtons[nextIndex]);
+    });
+  });
+
   const customerForm = document.getElementById('customer-form');
 
   if (customerForm) {

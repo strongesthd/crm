@@ -38,6 +38,7 @@ các tài khoản cũ được giữ lại và giao dịch cũ được đánh d
 
 Trang **Quản lý kho** cho phép tạo hàng hóa, cập nhật mã hàng, đơn vị tính,
 giá vốn, giá bán và khuyến mại theo phần trăm hoặc số tiền trong khoảng ngày.
+Danh sách hàng hóa và chứng từ nhập xuất được tách thành các tab riêng.
 Danh mục và đơn vị tính được chọn từ danh sách có thể thêm tùy chọn mới; chỉ
 xóa được lựa chọn chưa được hàng hóa sử dụng và hệ thống luôn giữ ít nhất một
 lựa chọn mỗi loại. Danh mục và đơn vị tính đang có sẽ được giữ lại khi nâng
