@@ -34,13 +34,26 @@
     );
   }
 
+  const submitDeleteForm = (form) => {
+    const modal = document.getElementById(
+      form.dataset.closeModalOnDelete || '',
+    );
+    const closeButton = modal && modal.querySelector('[data-modal-hide]');
+
+    if (closeButton) {
+      closeButton.click();
+    }
+
+    form.submit();
+  };
+
   document.querySelectorAll('[data-confirm-delete]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
 
       if (!window.Swal) {
         if (window.confirm(form.dataset.confirmMessage)) {
-          form.submit();
+          submitDeleteForm(form);
         }
 
         return;
@@ -59,7 +72,7 @@
       });
 
       if (result.isConfirmed) {
-        form.submit();
+        submitDeleteForm(form);
       }
     });
   });

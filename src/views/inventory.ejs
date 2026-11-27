@@ -144,7 +144,7 @@
               <li class="flex items-center justify-between gap-3 px-3 py-2.5">
                 <span class="text-sm text-slate-700"><%= category.name %></span>
                 <% if (category.product_count === 0 && categories.length > 1) { %>
-                  <form method="post" action="/inventory/options/categories/<%= category.id %>/delete" data-confirm-delete data-confirm-message="Xóa danh mục này?">
+                  <form method="post" action="/inventory/options/categories/<%= category.id %>/delete" data-confirm-delete data-confirm-message="Xóa danh mục này?" data-close-modal-on-delete="inventory-options-modal">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">Xóa</button>
                   </form>
@@ -169,7 +169,7 @@
               <li class="flex items-center justify-between gap-3 px-3 py-2.5">
                 <span class="text-sm text-slate-700"><%= unit.name %></span>
                 <% if (unit.product_count === 0 && units.length > 1) { %>
-                  <form method="post" action="/inventory/options/units/<%= unit.id %>/delete" data-confirm-delete data-confirm-message="Xóa đơn vị tính này?">
+                  <form method="post" action="/inventory/options/units/<%= unit.id %>/delete" data-confirm-delete data-confirm-message="Xóa đơn vị tính này?" data-close-modal-on-delete="inventory-options-modal">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">Xóa</button>
                   </form>
