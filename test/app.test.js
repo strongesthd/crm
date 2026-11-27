@@ -77,6 +77,111 @@ const postForm = (baseUrl, route, cookie, csrfToken, fields = {}) =>
     redirect: 'manual',
   });
 
+test('paginates customers, transactions, and inventory documents by ten', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-pagination-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const cookie = await login(baseUrl, adminUser, adminPass);
+  const insertCustomer = db.prepare(
+    'INSERT INTO customers (name, status) VALUES (?, ?)',
+  );
+  const insertTransaction = db.prepare(
+    `INSERT INTO transactions
+      (type, amount, category, description, transaction_date)
+     VALUES ('THU', ?, 'Bán hàng', ?, '2026-11-27')`,
+  );
+  const insertDocument = db.prepare(
+    `INSERT INTO inventory_documents
+      (document_type, document_date, party_name, payment_status)
+     VALUES ('PURCHASE', '2026-11-27', ?, 'Đã thanh toán')`,
+  );
+
+  db.prepare('DELETE FROM transactions').run();
+  for (let index = 1; index <= 12; index += 1) {
+    const number = String(index).padStart(2, '0');
+    insertCustomer.run(`Pagination customer ${number}`, 'Tiềm năng');
+    insertTransaction.run(1000 + index, `Pagination transaction ${number}`);
+    insertDocument.run(`Pagination document ${number}`);
+  }
+
+  const customerFirstPage = await fetch(
+    `${baseUrl}/customers?q=${encodeURIComponent('Pagination customer')}`,
+    { headers: { cookie } },
+  );
+  const customerFirstHtml = await customerFirstPage.text();
+  assert.match(customerFirstHtml, /1–10/);
+  assert.match(customerFirstHtml, /12<\/span> khách hàng/);
+  assert.match(customerFirstHtml, /Pagination customer 12/);
+  assert.doesNotMatch(customerFirstHtml, /Pagination customer 02/);
+
+  const customerSecondPage = await fetch(
+    `${baseUrl}/customers?q=${encodeURIComponent('Pagination customer')}` +
+      '&page=2',
+    { headers: { cookie } },
+  );
+  const customerSecondHtml = await customerSecondPage.text();
+  assert.match(customerSecondHtml, /11–12/);
+  assert.match(customerSecondHtml, /Pagination customer 02/);
+  assert.doesNotMatch(customerSecondHtml, /Pagination customer 12/);
+  assert.ok(
+    customerSecondHtml.includes(
+      '/customers?q=Pagination+customer&amp;page=1',
+    ),
+  );
+
+  const transactionSecondPage = await fetch(
+    `${baseUrl}/transactions?type=THU&page=2`,
+    { headers: { cookie } },
+  );
+  const transactionSecondHtml = await transactionSecondPage.text();
+  assert.match(transactionSecondHtml, /11–12/);
+  assert.match(transactionSecondHtml, /12<\/span> giao dịch/);
+  assert.match(transactionSecondHtml, /Pagination transaction 02/);
+  assert.doesNotMatch(transactionSecondHtml, /Pagination transaction 12/);
+  assert.ok(
+    transactionSecondHtml.includes(
+      '/transactions?type=THU&amp;page=1',
+    ),
+  );
+
+  const documentSecondPage = await fetch(
+    `${baseUrl}/inventory?tab=documents&page=2`,
+    { headers: { cookie } },
+  );
+  const documentSecondHtml = await documentSecondPage.text();
+  assert.match(documentSecondHtml, /11–12/);
+  assert.match(documentSecondHtml, /12<\/span> chứng từ/);
+  assert.match(documentSecondHtml, /Pagination document 02/);
+  assert.doesNotMatch(documentSecondHtml, /Pagination document 12/);
+  assert.ok(
+    documentSecondHtml.includes(
+      '/inventory?tab=documents&amp;page=1',
+    ),
+  );
+  assert.match(
+    documentSecondHtml,
+    /id="inventory-documents-tab"[^>]*aria-selected="true"/,
+  );
+});
+
 test('protects CRM routes, validates CSRF, escapes customer input, and exports filtered CSV', async (context) => {
   const temporaryDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'internal-crm-finance-test-'),

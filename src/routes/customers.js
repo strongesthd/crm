@@ -4,6 +4,7 @@ const { CUSTOMER_STATUSES } = require('../db');
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate, getInitials } = require('../utils/format');
+const { createPagination } = require('../utils/pagination');
 
 const createCustomersRouter = (db) => {
   const router = express.Router();
@@ -31,6 +32,18 @@ const createCustomersRouter = (db) => {
       parameters.push(selectedStatus);
     }
 
+    const totalItems = db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM customers
+         ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}`,
+      )
+      .get(...parameters).count;
+    const pagination = createPagination({
+      page: req.query.page,
+      totalItems,
+      basePath: '/customers',
+      filters: { q: search, status: selectedStatus },
+    });
     const customers = db
       .prepare(
         `SELECT c.*,
@@ -40,9 +53,10 @@ const createCustomersRouter = (db) => {
          LEFT JOIN transactions t ON t.customer_id = c.id
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
          GROUP BY c.id
-         ORDER BY c.created_at DESC, c.id DESC`,
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT ? OFFSET ?`,
       )
-      .all(...parameters)
+      .all(...parameters, pagination.pageSize, pagination.offset)
       .map((customer) => ({
         ...customer,
         initials: getInitials(customer.name),
@@ -66,6 +80,7 @@ const createCustomersRouter = (db) => {
       title: 'Khách hàng',
       activePage: 'customers',
       customers,
+      pagination,
       search,
       selectedStatus,
       customerStatuses: CUSTOMER_STATUSES,

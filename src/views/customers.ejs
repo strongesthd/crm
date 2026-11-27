@@ -72,8 +72,8 @@
         </tbody>
       </table>
     </div>
-    <p class="mt-4 text-xs text-slate-400">Đang hiển thị <%= customers.length %> khách hàng</p>
   <% } %>
+  <%- include('partials/pagination', { pagination, itemLabel: 'khách hàng' }) %>
 </section>
 
 <% if (canManageCustomers) { %>

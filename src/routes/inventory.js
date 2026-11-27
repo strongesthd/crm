@@ -4,6 +4,7 @@ const { PAYMENT_STATUSES } = require('../db');
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate } = require('../utils/format');
+const { createPagination } = require('../utils/pagination');
 const { isValidDate } = require('./transactions');
 
 const INVENTORY_ROLES = ['admin', 'manager', 'accountant'];
@@ -71,6 +72,15 @@ const createInventoryRouter = (db) => {
         return viewProduct;
       });
 
+    const totalDocumentItems = db
+      .prepare('SELECT COUNT(*) AS count FROM inventory_documents')
+      .get().count;
+    const documentsPagination = createPagination({
+      page: req.query.tab === 'documents' ? req.query.page : undefined,
+      totalItems: totalDocumentItems,
+      basePath: '/inventory',
+      filters: { tab: 'documents' },
+    });
     const documents = db
       .prepare(
         `SELECT d.id, d.document_type, d.document_date, d.party_name,
@@ -88,9 +98,9 @@ const createInventoryRouter = (db) => {
          LEFT JOIN users u ON u.id = d.created_by
          GROUP BY d.id
          ORDER BY d.document_date DESC, d.id DESC
-         LIMIT 100`,
+         LIMIT ? OFFSET ?`,
       )
-      .all()
+      .all(documentsPagination.pageSize, documentsPagination.offset)
       .map((document) => ({
         ...document,
         formattedDate: formatDate(document.document_date),
@@ -130,6 +140,9 @@ const createInventoryRouter = (db) => {
       products,
       categories,
       units,
+      activeInventoryTab:
+        req.query.tab === 'documents' ? 'documents' : 'products',
+      documentsPagination,
       showInventoryOptionsModal: req.query.manageOptions === '1',
       productsForForms: canManageInventory
         ? products

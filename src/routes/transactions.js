@@ -9,6 +9,7 @@ const {
 const { requireRoles } = require('../middleware/auth');
 const { setFlash } = require('../middleware/flash');
 const { formatCurrency, formatDate } = require('../utils/format');
+const { createPagination } = require('../utils/pagination');
 const {
   applyInventoryDocumentApproval,
   isInventoryTransaction,
@@ -25,6 +26,18 @@ const createTransactionsRouter = (db) => {
       req.currentUser.role === 'manager';
     const filters = readFilters(req.query);
     const { conditions, parameters } = buildConditions(filters);
+    const totalItems = db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM transactions t
+         ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}`,
+      )
+      .get(...parameters).count;
+    const pagination = createPagination({
+      page: req.query.page,
+      totalItems,
+      basePath: '/transactions',
+      filters,
+    });
     const transactions = db
       .prepare(
         `SELECT t.*, c.name AS customer_name,
@@ -38,9 +51,10 @@ const createTransactionsRouter = (db) => {
          LEFT JOIN users reviewer ON reviewer.id = t.reviewed_by
          LEFT JOIN inventory_documents inventory ON inventory.transaction_id = t.id
          ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
-         ORDER BY t.transaction_date DESC, t.id DESC`,
+         ORDER BY t.transaction_date DESC, t.id DESC
+         LIMIT ? OFFSET ?`,
       )
-      .all(...parameters)
+      .all(...parameters, pagination.pageSize, pagination.offset)
       .map((transaction) => {
         const amountHidden =
           !canViewInventoryCosts &&
@@ -83,6 +97,7 @@ const createTransactionsRouter = (db) => {
       title: 'Thu - Chi',
       activePage: 'transactions',
       transactions,
+      pagination,
       customers,
       filters,
       csvUrl: `/transactions/export.csv?${new URLSearchParams(

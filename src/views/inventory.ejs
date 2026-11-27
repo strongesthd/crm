@@ -23,15 +23,15 @@
 </div>
 
 <div role="tablist" aria-label="Nội dung quản lý kho" class="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200">
-  <button id="inventory-products-tab" type="button" role="tab" aria-selected="true" aria-controls="inventory-products-panel" tabindex="0" data-inventory-tab="inventory-products-panel" class="rounded-t-lg border-b-2 border-indigo-600 px-4 py-2.5 text-sm font-semibold text-indigo-700">
+  <button id="inventory-products-tab" type="button" role="tab" aria-selected="<%= activeInventoryTab === 'products' %>" aria-controls="inventory-products-panel" tabindex="<%= activeInventoryTab === 'products' ? '0' : '-1' %>" data-inventory-tab="inventory-products-panel" class="rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-semibold <%= activeInventoryTab === 'products' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800' %>">
     Hàng hóa <span class="ml-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs"><%= products.length %></span>
   </button>
-  <button id="inventory-documents-tab" type="button" role="tab" aria-selected="false" aria-controls="inventory-documents-panel" tabindex="-1" data-inventory-tab="inventory-documents-panel" class="rounded-t-lg border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-800">
-    Chứng từ nhập xuất <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs"><%= documents.length %></span>
+  <button id="inventory-documents-tab" type="button" role="tab" aria-selected="<%= activeInventoryTab === 'documents' %>" aria-controls="inventory-documents-panel" tabindex="<%= activeInventoryTab === 'documents' ? '0' : '-1' %>" data-inventory-tab="inventory-documents-panel" class="rounded-t-lg border-b-2 px-4 py-2.5 text-sm font-semibold <%= activeInventoryTab === 'documents' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800' %>">
+    Chứng từ nhập xuất <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs"><%= documentsPagination.totalItems %></span>
   </button>
 </div>
 
-<section id="inventory-products-panel" role="tabpanel" aria-labelledby="inventory-products-tab" tabindex="0" data-inventory-tab-panel class="panel-card mb-6">
+<section id="inventory-products-panel" role="tabpanel" aria-labelledby="inventory-products-tab" tabindex="0" data-inventory-tab-panel class="panel-card mb-6 <%= activeInventoryTab === 'products' ? '' : 'hidden' %>">
   <div class="mb-5">
     <h2 class="text-base font-semibold text-slate-900">Danh mục hàng hóa</h2>
     <p class="mt-1 text-sm text-slate-500">Giá bán và chương trình khuyến mại đang áp dụng được hiển thị cho nhân viên.</p>
@@ -95,7 +95,7 @@
   <% } %>
 </section>
 
-<section id="inventory-documents-panel" role="tabpanel" aria-labelledby="inventory-documents-tab" tabindex="0" data-inventory-tab-panel class="panel-card hidden">
+<section id="inventory-documents-panel" role="tabpanel" aria-labelledby="inventory-documents-tab" tabindex="0" data-inventory-tab-panel class="panel-card <%= activeInventoryTab === 'documents' ? '' : 'hidden' %>">
   <div class="mb-5">
     <h2 class="text-base font-semibold text-slate-900">Chứng từ nhập xuất</h2>
     <p class="mt-1 text-sm text-slate-500">Chứng từ tự tạo phiếu thu/chi ở trạng thái chờ duyệt. Tồn kho chỉ thay đổi sau khi Quản lý duyệt phiếu.</p>
@@ -130,6 +130,7 @@
       </table>
     </div>
   <% } %>
+  <%- include('partials/pagination', { pagination: documentsPagination, itemLabel: 'chứng từ' }) %>
 </section>
 
 <% if (canManageInventory) { %>
