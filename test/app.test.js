@@ -1055,6 +1055,11 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   });
   const initialInventoryHtml = await initialInventoryResponse.text();
 
+  assert.doesNotMatch(initialInventoryHtml, /inventory-sku|name="sku"/);
+  assert.match(
+    initialInventoryHtml,
+    /class="sm:col-span-2"><label for="inventory-name"/,
+  );
   assert.match(initialInventoryHtml, /<select id="inventory-category"/);
   assert.match(initialInventoryHtml, /<select id="inventory-unit"/);
   assert.match(initialInventoryHtml, /role="tablist"/);
@@ -1136,9 +1141,8 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     accountantCookie,
     accountantCsrfToken,
     {
-      sku: 'INV-ACC-001',
       name: 'Sản phẩm kế toán',
-      category: 'Phụ kiện',
+      category: 'Đồ uống',
       unit: 'Bộ',
       costPrice: '50',
       salePrice: '100',
@@ -1146,6 +1150,31 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   );
 
   assert.equal(accountantProductResponse.status, 302);
+  const accountantProduct = db
+    .prepare("SELECT id, sku FROM products WHERE name = 'Sản phẩm kế toán'")
+    .get();
+  assert.match(accountantProduct.sku, /^TRIADU\d{4}$/);
+  const updateProductResponse = await postForm(
+    baseUrl,
+    `/inventory/products/${accountantProduct.id}`,
+    managerCookie,
+    managerCsrfToken,
+    {
+      sku: 'MANUAL-SKU-SHOULD-BE-IGNORED',
+      name: 'Sản phẩm kế toán',
+      category: 'Đồ uống',
+      unit: 'Bộ',
+      costPrice: '50',
+      salePrice: '100',
+    },
+  );
+  assert.equal(updateProductResponse.status, 302);
+  assert.equal(
+    db
+      .prepare('SELECT sku FROM products WHERE id = ?')
+      .get(accountantProduct.id).sku,
+    accountantProduct.sku,
+  );
   const today = new Date().toISOString().slice(0, 10);
   const createProductResponse = await postForm(
     baseUrl,
@@ -1153,7 +1182,7 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     managerCookie,
     managerCsrfToken,
     {
-      sku: 'INV-001',
+      sku: 'MANUAL-SKU-SHOULD-BE-IGNORED',
       name: 'Sản phẩm kiểm tra tồn',
       category: 'Phụ kiện',
       unit: 'Bộ',
@@ -1167,9 +1196,31 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   );
 
   assert.equal(createProductResponse.status, 302);
-  const productId = db
-    .prepare("SELECT id FROM products WHERE sku = 'INV-001'")
-    .get().id;
+  const createdProduct = db
+    .prepare("SELECT id, sku FROM products WHERE name = 'Sản phẩm kiểm tra tồn'")
+    .get();
+  const productId = createdProduct.id;
+  assert.match(createdProduct.sku, /^TRIAPK\d{4}$/);
+  assert.notEqual(createdProduct.sku, 'MANUAL-SKU-SHOULD-BE-IGNORED');
+  const secondProductResponse = await postForm(
+    baseUrl,
+    '/inventory/products',
+    managerCookie,
+    managerCsrfToken,
+    {
+      name: 'Sản phẩm kiểm tra mã tự sinh',
+      category: 'Phụ kiện',
+      unit: 'Bộ',
+      costPrice: '100',
+      salePrice: '200',
+    },
+  );
+  assert.equal(secondProductResponse.status, 302);
+  const secondGeneratedSku = db
+    .prepare("SELECT sku FROM products WHERE name = 'Sản phẩm kiểm tra mã tự sinh'")
+    .get().sku;
+  assert.match(secondGeneratedSku, /^TRIAPK\d{4}$/);
+  assert.notEqual(secondGeneratedSku, createdProduct.sku);
   for (const [type, name] of [
     ['categories', 'Phụ kiện'],
     ['units', 'Bộ'],
@@ -1351,7 +1402,6 @@ test('links inventory documents to cashbook and limits cost visibility', async (
     cashierCookie,
     cashierCsrfToken,
     {
-      sku: 'BLOCKED-001',
       name: 'Không được tạo',
       category: 'Phụ kiện',
       unit: 'Bộ',

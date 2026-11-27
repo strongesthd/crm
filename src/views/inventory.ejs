@@ -209,8 +209,7 @@
       </div>
       <form id="inventory-product-form" method="post" action="/inventory/products" class="grid gap-4 p-6 sm:grid-cols-2">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div><label for="inventory-sku" class="form-label">Mã hàng *</label><input id="inventory-sku" name="sku" required maxlength="80" class="form-input"></div>
-        <div><label for="inventory-name" class="form-label">Tên hàng hóa *</label><input id="inventory-name" name="name" required maxlength="160" class="form-input"></div>
+        <div class="sm:col-span-2"><label for="inventory-name" class="form-label">Tên hàng hóa *</label><input id="inventory-name" name="name" required maxlength="160" class="form-input"><p class="mt-1 text-xs text-slate-400">Mã hàng sẽ tự sinh theo danh mục.</p></div>
         <div><label for="inventory-category" class="form-label">Danh mục *</label><select id="inventory-category" name="category" required class="form-input"><% categories.forEach((category) => { %><option value="<%= category.name %>" <%= category.name === 'Khác' ? 'selected' : '' %>><%= category.name %></option><% }) %></select></div>
         <div><label for="inventory-unit" class="form-label">Đơn vị tính *</label><select id="inventory-unit" name="unit" required class="form-input"><% units.forEach((unit) => { %><option value="<%= unit.name %>" <%= unit.name === 'Cái' ? 'selected' : '' %>><%= unit.name %></option><% }) %></select></div>
         <div><label for="inventory-cost-price" class="form-label">Giá vốn hiện tại (VNĐ) *</label><input id="inventory-cost-price" name="costPrice" type="number" min="0" max="9000000000000" step="1" required class="form-input" value="0"></div>

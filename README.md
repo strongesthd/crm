@@ -38,6 +38,8 @@ các tài khoản cũ được giữ lại và giao dịch cũ được đánh d
 
 Trang **Quản lý kho** cho phép tạo hàng hóa, cập nhật mã hàng, đơn vị tính,
 giá vốn, giá bán và khuyến mại theo phần trăm hoặc số tiền trong khoảng ngày.
+Mã hàng tự sinh theo dạng `TRIA` + chữ cái đầu của từng từ trong danh mục +
+bốn chữ số ngẫu nhiên; mã được giữ nguyên khi sửa thông tin hàng hóa.
 Danh sách hàng hóa và chứng từ nhập xuất được tách thành các tab riêng.
 Danh sách khách hàng, giao dịch thu chi và chứng từ nhập xuất được phân trang
 10 mục mỗi trang; bộ lọc hiện tại được giữ khi chuyển trang.

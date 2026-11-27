@@ -329,7 +329,6 @@
         const product = JSON.parse(button.dataset.productEdit);
 
         inventoryProductForm.action = `/inventory/products/${product.id}`;
-        inventoryProductForm.elements.sku.value = product.sku;
         inventoryProductForm.elements.name.value = product.name;
         inventoryProductForm.elements.category.value = product.category;
         inventoryProductForm.elements.unit.value = product.unit;

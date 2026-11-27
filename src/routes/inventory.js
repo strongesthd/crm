@@ -1,3 +1,4 @@
+const { randomInt } = require('node:crypto');
 const express = require('express');
 
 const { PAYMENT_STATUSES } = require('../db');
@@ -262,33 +263,48 @@ const createInventoryRouter = (db) => {
     requireRoles(...INVENTORY_ROLES),
     (req, res) => {
       const product = readProduct(req.body, db);
-
-      try {
-        db.prepare(
+      const createProduct = db.transaction(() => {
+        const categoryAbbreviation = getCategoryAbbreviation(product.category);
+        const start = randomInt(0, 9000);
+        const findSku = db.prepare('SELECT 1 FROM products WHERE sku = ?');
+        const insertProduct = db.prepare(
           `INSERT INTO products
             (sku, name, category, unit, cost_price, sale_price,
              promotion_type, promotion_value, promotion_start_date,
              promotion_end_date)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          product.sku,
-          product.name,
-          product.category,
-          product.unit,
-          product.costPrice,
-          product.salePrice,
-          product.promotionType,
-          product.promotionValue,
-          product.promotionStartDate,
-          product.promotionEndDate,
         );
-      } catch (error) {
-        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          throw createHttpError(409, 'Mã hàng này đã được sử dụng.');
+
+        for (let offset = 0; offset < 9000; offset += 1) {
+          const suffix = 1000 + ((start + offset) % 9000);
+          const sku = `TRIA${categoryAbbreviation}${suffix}`;
+
+          if (findSku.get(sku)) {
+            continue;
+          }
+
+          insertProduct.run(
+            sku,
+            product.name,
+            product.category,
+            product.unit,
+            product.costPrice,
+            product.salePrice,
+            product.promotionType,
+            product.promotionValue,
+            product.promotionStartDate,
+            product.promotionEndDate,
+          );
+
+          return sku;
         }
 
-        throw error;
-      }
+        throw createHttpError(
+          409,
+          `Danh mục "${product.category}" đã hết mã hàng tự động.`,
+        );
+      });
+      createProduct.immediate();
 
       setFlash(req, 'success', `Đã thêm hàng hóa ${product.name}.`);
       res.redirect('/inventory');
@@ -302,39 +318,30 @@ const createInventoryRouter = (db) => {
       const productId = parseRecordId(req.params.id);
       const product = readProduct(req.body, db);
 
-      try {
-        const result = db
-          .prepare(
-            `UPDATE products
-             SET sku = ?, name = ?, category = ?, unit = ?, cost_price = ?,
-               sale_price = ?, promotion_type = ?, promotion_value = ?,
-               promotion_start_date = ?, promotion_end_date = ?,
-               updated_at = datetime('now')
-             WHERE id = ?`,
-          )
-          .run(
-            product.sku,
-            product.name,
-            product.category,
-            product.unit,
-            product.costPrice,
-            product.salePrice,
-            product.promotionType,
-            product.promotionValue,
-            product.promotionStartDate,
-            product.promotionEndDate,
-            productId,
-          );
+      const result = db
+        .prepare(
+          `UPDATE products
+           SET name = ?, category = ?, unit = ?, cost_price = ?,
+             sale_price = ?, promotion_type = ?, promotion_value = ?,
+             promotion_start_date = ?, promotion_end_date = ?,
+             updated_at = datetime('now')
+           WHERE id = ?`,
+        )
+        .run(
+          product.name,
+          product.category,
+          product.unit,
+          product.costPrice,
+          product.salePrice,
+          product.promotionType,
+          product.promotionValue,
+          product.promotionStartDate,
+          product.promotionEndDate,
+          productId,
+        );
 
-        if (result.changes === 0) {
-          throw createHttpError(404, 'Không tìm thấy hàng hóa.');
-        }
-      } catch (error) {
-        if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-          throw createHttpError(409, 'Mã hàng này đã được sử dụng.');
-        }
-
-        throw error;
+      if (result.changes === 0) {
+        throw createHttpError(404, 'Không tìm thấy hàng hóa.');
       }
 
       setFlash(req, 'success', `Đã cập nhật hàng hóa ${product.name}.`);
@@ -441,7 +448,6 @@ const createInventoryRouter = (db) => {
 };
 
 const readProduct = (body, db) => {
-  const sku = readText(body.sku, 'Mã hàng', 80);
   const name = readText(body.name, 'Tên hàng hóa', 160);
   const category = readText(body.category, 'Danh mục', 100);
   const unit = readText(body.unit, 'Đơn vị tính', 30);
@@ -458,7 +464,7 @@ const readProduct = (body, db) => {
   const promotionStartDate = readOptionalDate(body.promotionStartDate);
   const promotionEndDate = readOptionalDate(body.promotionEndDate);
 
-  if (!sku || !name || !category || !unit) {
+  if (!name || !category || !unit) {
     throw createHttpError(400, 'Vui lòng nhập đầy đủ thông tin hàng hóa.');
   }
 
@@ -500,9 +506,22 @@ const readProduct = (body, db) => {
     promotionType,
     promotionValue,
     salePrice,
-    sku,
     unit,
   };
+};
+
+const getCategoryAbbreviation = (category) => {
+  const abbreviation = category
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+
+  return abbreviation || 'DM';
 };
 
 const readDocument = (body, db) => {
