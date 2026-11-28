@@ -12,9 +12,11 @@
 
     <p class="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Không gian làm việc</p>
     <nav class="space-y-1">
-      <a href="/" class="nav-link <%= activePage === 'dashboard' ? 'nav-link-active' : '' %>">
-        <i data-lucide="layout-dashboard" class="h-5 w-5"></i><span>Tổng quan</span>
-      </a>
+      <% if (currentUser.role !== 'sale') { %>
+        <a href="/" class="nav-link <%= activePage === 'dashboard' ? 'nav-link-active' : '' %>">
+          <i data-lucide="layout-dashboard" class="h-5 w-5"></i><span>Tổng quan</span>
+        </a>
+      <% } %>
       <a href="/customers" class="nav-link <%= activePage === 'customers' ? 'nav-link-active' : '' %>">
         <i data-lucide="users" class="h-5 w-5"></i><span>Khách hàng</span>
       </a>

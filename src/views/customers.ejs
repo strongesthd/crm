@@ -58,8 +58,13 @@
               <td>
                 <div class="flex justify-end gap-1">
                   <button type="button" data-customer-details="<%= customer.id %>" data-modal-target="customer-details-modal" data-modal-toggle="customer-details-modal" class="icon-button" aria-label="Xem chi tiết <%= customer.name %>" title="Chi tiết"><i data-lucide="eye" class="h-4 w-4"></i></button>
-                  <% if (canManageCustomers) { %>
+                  <% if (customer.canEdit) { %>
                     <button type="button" data-customer-edit="<%= customer.detailsJson %>" data-modal-target="customer-modal" data-modal-toggle="customer-modal" class="icon-button" aria-label="Sửa <%= customer.name %>" title="Chỉnh sửa"><i data-lucide="pencil" class="h-4 w-4"></i></button>
+                  <% } %>
+                  <% if (customer.canShare && saleUsers.length > 0) { %>
+                    <button type="button" data-customer-share="<%= customer.detailsJson %>" data-modal-target="customer-share-modal" data-modal-toggle="customer-share-modal" class="icon-button" aria-label="Chia sẻ <%= customer.name %>" title="Chia sẻ khách hàng"><i data-lucide="share-2" class="h-4 w-4"></i></button>
+                  <% } %>
+                  <% if (customer.canDelete) { %>
                     <form method="post" action="/customers/<%= customer.id %>/delete" data-confirm-delete data-confirm-message="Xóa khách hàng này? Các giao dịch đã liên kết vẫn được giữ lại.">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                       <button type="submit" class="icon-button text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Xóa <%= customer.name %>" title="Xóa"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
@@ -100,9 +105,43 @@
           </select>
         </div>
         <div><label for="customer-notes" class="form-label">Ghi chú</label><textarea id="customer-notes" name="notes" rows="3" maxlength="5000" class="form-input" placeholder="Thông tin cần lưu ý về khách hàng..."></textarea></div>
+        <% if (canSetPublic) { %>
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+          <input id="customer-public" type="checkbox" name="isPublic" value="1" class="rounded border-slate-300 text-indigo-600">
+          Khách hàng công khai
+        </label>
+        <% } %>
         <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
           <button type="button" data-modal-hide="customer-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
           <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu khách hàng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<% if (saleUsers.length > 0) { %>
+<div id="customer-share-modal" tabindex="-1" aria-hidden="true" class="fixed left-0 right-0 top-0 z-50 hidden h-[calc(100%-1rem)] max-h-full w-full items-center justify-center overflow-y-auto overflow-x-hidden p-4 md:inset-0">
+  <div class="relative max-h-full w-full max-w-lg">
+    <div class="relative rounded-2xl bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div><h3 id="customer-share-title" class="text-lg font-semibold text-slate-900">Chia sẻ khách hàng</h3><p class="mt-1 text-sm text-slate-500">Chọn Sale được phép xem khách hàng này.</p></div>
+        <button type="button" data-modal-hide="customer-share-modal" class="icon-button" aria-label="Đóng"><i data-lucide="x" class="h-5 w-5"></i></button>
+      </div>
+      <form id="customer-share-form" method="post" action="#" class="space-y-4 p-6">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="max-h-64 space-y-3 overflow-y-auto">
+          <% saleUsers.forEach((saleUser) => { %>
+            <label class="flex items-center gap-3 text-sm text-slate-700">
+              <input type="checkbox" name="userId" value="<%= saleUser.id %>" class="customer-share-user rounded border-slate-300 text-indigo-600">
+              <%= saleUser.fullName %>
+            </label>
+          <% }) %>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <button type="button" data-modal-hide="customer-share-modal" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
+          <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Lưu chia sẻ</button>
         </div>
       </form>
     </div>

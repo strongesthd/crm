@@ -266,6 +266,7 @@ test('protects CRM routes, validates CSRF, escapes customer input, and exports f
   assert.match(transactionsHtml, /data-dropdown-toggle="profile-dropdown"/);
   assert.match(transactionsHtml, /href="\/account"/);
   assert.match(transactionsHtml, /<form method="post" action="\/logout">/);
+  assert.match(transactionsHtml, /sweetalert2@11\/dist\/sweetalert2\.min\.css/);
   assert.match(
     transactionsHtml,
     /<script src="\/app\.js\?v=[a-f0-9]{12}" defer><\/script>/,
@@ -1683,4 +1684,286 @@ test('validates ISO transaction dates and protects CSV from formula injection', 
   assert.equal(isValidDate('28/02/2026'), false);
   assert.equal(escapeCsvCell('=HYPERLINK("https://example.com")'), '"\'=HYPERLINK(""https://example.com"")"');
   assert.equal(escapeCsvCell('Công ty "An Bình"'), '"Công ty ""An Bình"""');
+});
+
+test('limits Sale access to owned, public, and shared customers and hides finance costs', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-sale-role-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const adminCookie = await login(baseUrl, adminUser, adminPass);
+  const adminCsrfToken = await getCsrfToken(
+    baseUrl,
+    adminCookie,
+    '/customers',
+  );
+  const salePassword = 'sale-password-123';
+  const otherSalePassword = 'sale-password-456';
+
+  assert.ok(require('../src/db').USER_ROLES.includes('sale'));
+  await postForm(baseUrl, '/users', adminCookie, adminCsrfToken, {
+    fullName: 'Nhân viên Sale Một',
+    username: 'sale.one',
+    password: salePassword,
+    role: 'sale',
+  });
+  const usersPageResponse = await fetch(`${baseUrl}/users`, {
+    headers: { cookie: adminCookie },
+  });
+  const usersPageHtml = await usersPageResponse.text();
+  assert.match(usersPageHtml, /Sale/);
+  await postForm(baseUrl, '/users', adminCookie, adminCsrfToken, {
+    fullName: 'Nhân viên Sale Hai',
+    username: 'sale.two',
+    password: otherSalePassword,
+    role: 'sale',
+  });
+
+  const saleId = db
+    .prepare("SELECT id FROM users WHERE username = 'sale.one'")
+    .get().id;
+  const otherSaleId = db
+    .prepare("SELECT id FROM users WHERE username = 'sale.two'")
+    .get().id;
+  const saleCookie = await login(baseUrl, 'sale.one', salePassword);
+  const otherSaleCookie = await login(
+    baseUrl,
+    'sale.two',
+    otherSalePassword,
+  );
+  const saleCsrfToken = await getCsrfToken(
+    baseUrl,
+    saleCookie,
+    '/customers',
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const publicCustomerId = Number(
+    db
+      .prepare(
+        `INSERT INTO customers (name, is_public)
+         VALUES ('Khách hàng công khai kiểm thử', 1)`,
+      )
+      .run().lastInsertRowid,
+  );
+  const createOwnCustomer = await postForm(
+    baseUrl,
+    '/customers',
+    saleCookie,
+    saleCsrfToken,
+    {
+      name: 'Khách hàng Sale Một nhập',
+      status: 'Tiềm năng',
+    },
+  );
+  const createOtherCustomer = await postForm(
+    baseUrl,
+    '/customers',
+    otherSaleCookie,
+    await getCsrfToken(baseUrl, otherSaleCookie, '/customers'),
+    {
+      name: 'Khách hàng Sale Hai nhập',
+      status: 'Tiềm năng',
+    },
+  );
+  const ownCustomer = db
+    .prepare("SELECT id, owner_id, is_public FROM customers WHERE name = ?")
+    .get('Khách hàng Sale Một nhập');
+  const otherCustomer = db
+    .prepare("SELECT id, owner_id, is_public FROM customers WHERE name = ?")
+    .get('Khách hàng Sale Hai nhập');
+
+  assert.equal(createOwnCustomer.status, 302);
+  assert.equal(createOtherCustomer.status, 302);
+  assert.deepEqual(ownCustomer, {
+    id: ownCustomer.id,
+    owner_id: saleId,
+    is_public: 0,
+  });
+  assert.equal(otherCustomer.owner_id, otherSaleId);
+
+  let saleCustomersResponse = await fetch(`${baseUrl}/customers`, {
+    headers: { cookie: saleCookie },
+  });
+  let saleCustomersHtml = await saleCustomersResponse.text();
+  assert.match(saleCustomersHtml, /Khách hàng Sale Một nhập/);
+  assert.match(saleCustomersHtml, /Khách hàng công khai kiểm thử/);
+  assert.doesNotMatch(saleCustomersHtml, /Khách hàng Sale Hai nhập/);
+
+  const inaccessibleDetailsResponse = await fetch(
+    `${baseUrl}/customers/${otherCustomer.id}/details`,
+    { headers: { cookie: saleCookie } },
+  );
+  assert.equal(inaccessibleDetailsResponse.status, 403);
+
+  const unauthorizedShareResponse = await postForm(
+    baseUrl,
+    `/customers/${otherCustomer.id}/share`,
+    saleCookie,
+    saleCsrfToken,
+    { userId: String(saleId) },
+  );
+  assert.equal(unauthorizedShareResponse.status, 403);
+
+  const shareResponse = await postForm(
+    baseUrl,
+    `/customers/${otherCustomer.id}/share`,
+    adminCookie,
+    adminCsrfToken,
+    { userId: String(saleId) },
+  );
+  assert.equal(shareResponse.status, 302);
+  saleCustomersResponse = await fetch(`${baseUrl}/customers`, {
+    headers: { cookie: saleCookie },
+  });
+  saleCustomersHtml = await saleCustomersResponse.text();
+  assert.match(saleCustomersHtml, /Khách hàng Sale Hai nhập/);
+
+  const otherTransactionId = Number(
+    db
+      .prepare(
+        `INSERT INTO transactions
+          (type, amount, category, description, transaction_date,
+           payment_status, customer_id, approval_status, created_by)
+         VALUES ('THU', 6789, 'Bán hàng', 'Giao dịch của Sale Hai', ?,
+           'Đã thanh toán', ?, 'PENDING', ?)`,
+      )
+      .run(today, otherCustomer.id, otherSaleId).lastInsertRowid,
+  );
+  const createTransactionResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    saleCookie,
+    saleCsrfToken,
+    {
+      type: 'THU',
+      amount: '12345',
+      category: 'Bán hàng',
+      description: 'Giao dịch của Sale Một',
+      transactionDate: today,
+      paymentStatus: 'Đã thanh toán',
+      customerId: String(otherCustomer.id),
+    },
+  );
+  const ownTransaction = db
+    .prepare(
+      `SELECT approval_status, created_by FROM transactions
+       WHERE description = 'Giao dịch của Sale Một'`,
+    )
+    .get();
+  const saleTransactionsResponse = await fetch(`${baseUrl}/transactions`, {
+    headers: { cookie: saleCookie },
+  });
+  const saleTransactionsHtml = await saleTransactionsResponse.text();
+  const saleCsvResponse = await fetch(
+    `${baseUrl}/transactions/export.csv`,
+    { headers: { cookie: saleCookie } },
+  );
+  const saleCsv = await saleCsvResponse.text();
+
+  assert.equal(createTransactionResponse.status, 302);
+  assert.deepEqual(ownTransaction, {
+    approval_status: 'PENDING',
+    created_by: saleId,
+  });
+  assert.match(saleTransactionsHtml, /Giao dịch của Sale Một/);
+  assert.doesNotMatch(saleTransactionsHtml, /Giao dịch của Sale Hai/);
+  assert.match(saleCsv, /Giao dịch của Sale Một/);
+  assert.doesNotMatch(saleCsv, /Giao dịch của Sale Hai/);
+  assert.equal(
+    db.prepare('SELECT id FROM transactions WHERE id = ?').get(otherTransactionId)
+      .id,
+    otherTransactionId,
+  );
+
+  const productId = Number(
+    db
+      .prepare(
+        `INSERT INTO products
+          (sku, name, category, unit, cost_price, sale_price, stock_quantity)
+         VALUES ('SALE-TEST-001', 'Sản phẩm Sale', 'Khác', 'Cái',
+           987654321, 25000, 10)`,
+      )
+      .run().lastInsertRowid,
+  );
+  const inventoryResponse = await fetch(`${baseUrl}/inventory`, {
+    headers: { cookie: saleCookie },
+  });
+  const inventoryHtml = await inventoryResponse.text();
+  const productDataMatch = inventoryHtml.match(/data-products="([^"]*)"/);
+  const productData = productDataMatch
+    ? productDataMatch[1]
+        .replace(/&#34;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&#39;/g, "'")
+    : '';
+  assert.equal(inventoryResponse.status, 200);
+  assert.match(inventoryHtml, /Tạo đơn xuất \/ bán/);
+  assert.match(productData, /Sản phẩm Sale/);
+  assert.doesNotMatch(productData, /costPrice|987654321/);
+  assert.doesNotMatch(inventoryHtml, /987654321|Giá vốn|Lãi gộp/);
+
+  const forbiddenPurchaseResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    saleCookie,
+    saleCsrfToken,
+    { type: 'PURCHASE' },
+  );
+  assert.equal(forbiddenPurchaseResponse.status, 403);
+
+  const createSaleDocumentResponse = await postForm(
+    baseUrl,
+    '/inventory/documents',
+    saleCookie,
+    saleCsrfToken,
+    {
+      type: 'SALE',
+      date: today,
+      paymentStatus: 'Đã thanh toán',
+      customerId: String(otherCustomer.id),
+      productId: String(productId),
+      quantity: '1',
+      unitPrice: '0',
+    },
+  );
+  const createdSaleDocument = db
+    .prepare(
+      `SELECT d.created_by, d.approval_status, t.approval_status AS transaction_status
+       FROM inventory_documents d
+       JOIN transactions t ON t.id = d.transaction_id
+       WHERE d.created_by = ? AND d.customer_id = ?
+       ORDER BY d.id DESC LIMIT 1`,
+    )
+    .get(saleId, otherCustomer.id);
+
+  assert.equal(createSaleDocumentResponse.status, 302);
+  assert.deepEqual(createdSaleDocument, {
+    created_by: saleId,
+    approval_status: 'PENDING',
+    transaction_status: 'PENDING',
+  });
+
+  const dashboardResponse = await fetch(`${baseUrl}/`, {
+    headers: { cookie: saleCookie },
+    redirect: 'manual',
+  });
+  assert.equal(dashboardResponse.status, 302);
+  assert.equal(dashboardResponse.headers.get('location'), '/customers');
 });

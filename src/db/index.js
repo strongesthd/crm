@@ -20,7 +20,7 @@ const TRANSACTION_CATEGORIES = [
   'Marketing',
   'Khác',
 ];
-const USER_ROLES = ['accountant', 'cashier', 'manager'];
+const USER_ROLES = ['accountant', 'cashier', 'manager', 'sale'];
 const PRIVILEGED_USER_ROLES = ['admin', 'manager'];
 
 const ensureColumn = (db, tableName, columnName, definition) => {
@@ -182,6 +182,27 @@ const createDatabase = ({ adminPass, adminUser, databasePath }) => {
 
   ensureColumn(db, 'users', 'role', "TEXT NOT NULL DEFAULT 'admin'");
   ensureColumn(db, 'users', 'is_active', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn(
+    db,
+    'customers',
+    'owner_id',
+    'INTEGER REFERENCES users(id) ON DELETE SET NULL',
+  );
+  ensureColumn(
+    db,
+    'customers',
+    'is_public',
+    'INTEGER NOT NULL DEFAULT 1',
+  );
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS customer_shares (
+      customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (customer_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_customers_owner ON customers(owner_id, is_public);
+  `);
   const insertCategory = db.prepare(
     'INSERT OR IGNORE INTO inventory_categories (name) VALUES (?)',
   );

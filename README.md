@@ -20,12 +20,17 @@ Trong `.env`, đặt `ADMIN_USER`, `ADMIN_PASS` (ít nhất 12 ký tự) và
 ## Tài khoản và duyệt phiếu
 
 Đăng nhập bằng tài khoản quản trị, mở **Người dùng** trên thanh bên để tạo
-Tài khoản **Quản lý**, **Kế toán** hoặc **Thủ quỹ** từ trang **Người dùng**.
+tài khoản **Quản lý**, **Kế toán**, **Thủ quỹ** hoặc **Sale**.
 Quản lý có quyền quản trị và là vai trò duy nhất được duyệt hoặc từ chối phiếu.
 Kế toán được thêm/sửa khách hàng, quản lý kho và chỉnh sửa phiếu đang chờ duyệt;
-thủ quỹ được tạo phiếu và xem dữ liệu. Admin quản lý người dùng và kho nhưng
-không duyệt phiếu. Mỗi người dùng cũng có thể tự đổi họ tên, tên đăng nhập và
-mật khẩu ở mục **Tài khoản của tôi**.
+thủ quỹ được tạo phiếu và xem dữ liệu. Sale được nhập khách hàng và lập đơn bán,
+chỉ xem khách hàng do mình nhập, khách hàng công khai hoặc được chia sẻ với mình;
+Sale chỉ xem phiếu do mình tạo. Phiếu Sale tạo luôn chờ duyệt. Sale không xem
+giá vốn, phiếu thu chi của người khác hoặc thống kê lời lãi. Quản trị viên, Quản
+lý và Kế toán có thể đánh dấu khách hàng công khai hoặc chia sẻ khách hàng cho
+các tài khoản Sale. Admin quản lý người dùng và kho nhưng không duyệt phiếu.
+Mỗi người dùng cũng có thể tự đổi họ tên, tên đăng nhập và mật khẩu ở mục
+**Tài khoản của tôi**.
 
 Mọi phiếu mới đều ở trạng thái **Chờ duyệt**. Người có quyền duyệt có thể duyệt
 hoặc từ chối phiếu; từ chối phải có lý do. Chỉ phiếu đã duyệt mới được tính vào
@@ -53,9 +58,10 @@ giao dịch thu. Cả hai giao dịch được liên kết với chứng từ kh
 duyệt. Tồn kho chỉ tăng/giảm khi phiếu được duyệt; đơn bán không thể vượt tồn
 khả dụng. Giá vốn bình quân được cập nhật theo các phiếu nhập đã duyệt.
 
-Các vai trò khác vẫn xem được danh mục, số lượng tồn, giá bán và khuyến mại,
-nhưng không xem giá vốn, lãi gộp hay giá trị tồn kho. Giá trị các phiếu nhập
-cũng được ẩn khỏi sổ thu chi, CSV và tổng quan của những vai trò này.
+Thủ quỹ vẫn xem được danh mục, số lượng tồn, giá bán và khuyến mại, nhưng không
+xem giá vốn, lãi gộp hay giá trị tồn kho. Giá trị các phiếu nhập cũng được ẩn
+khỏi sổ thu chi, CSV và tổng quan. Sale có thể lập đơn bán từ tồn kho và xem
+giá bán, nhưng không xem giá vốn hoặc lãi gộp.
 
 ## Deploy VPS
 

@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <link href="/styles.css" rel="stylesheet">
     <script src="/tailwind-config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,7 +29,7 @@
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700"><%= getInitials(currentUser.fullName) %></span>
             <span class="min-w-0">
               <span class="block truncate text-sm font-medium text-slate-800"><%= currentUser.fullName %></span>
-              <span class="block truncate text-xs text-slate-500"><%= currentUser.role === 'admin' ? 'Quản trị viên' : currentUser.role === 'manager' ? 'Quản lý' : currentUser.role === 'accountant' ? 'Kế toán' : 'Thủ quỹ' %></span>
+              <span class="block truncate text-xs text-slate-500"><%= currentUser.role === 'admin' ? 'Quản trị viên' : currentUser.role === 'manager' ? 'Quản lý' : currentUser.role === 'accountant' ? 'Kế toán' : currentUser.role === 'sale' ? 'Sale' : 'Thủ quỹ' %></span>
             </span>
             <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-400"></i>
           </button>

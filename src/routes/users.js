@@ -11,6 +11,7 @@ const USER_ROLE_LABELS = {
   manager: 'Quản lý',
   accountant: 'Kế toán',
   cashier: 'Thủ quỹ',
+  sale: 'Sale',
 };
 const USER_ROLE_OPTIONS = USER_ROLES.map((role) => ({
   value: role,

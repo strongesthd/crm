@@ -125,11 +125,13 @@
     const customerEmail = document.getElementById('customer-email');
     const customerStatus = document.getElementById('customer-status');
     const customerNotes = document.getElementById('customer-notes');
+    const customerPublic = document.getElementById('customer-public');
 
     document.querySelectorAll('[data-customer-create]').forEach((button) => {
       button.addEventListener('click', () => {
         customerForm.action = '/customers';
         customerForm.reset();
+        if (customerPublic) customerPublic.checked = false;
         customerModalTitle.textContent = 'Thêm khách hàng';
       });
     });
@@ -144,7 +146,29 @@
         customerEmail.value = customer.email;
         customerStatus.value = customer.status;
         customerNotes.value = customer.notes;
+        if (customerPublic) customerPublic.checked = Boolean(customer.isPublic);
         customerModalTitle.textContent = 'Chỉnh sửa khách hàng';
+      });
+    });
+  }
+
+  const customerShareForm = document.getElementById('customer-share-form');
+  if (customerShareForm) {
+    const shareTitle = document.getElementById('customer-share-title');
+    const shareCheckboxes = Array.from(
+      customerShareForm.querySelectorAll('.customer-share-user'),
+    );
+
+    document.querySelectorAll('[data-customer-share]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const customer = JSON.parse(button.dataset.customerShare);
+        const sharedUserIds = new Set(customer.sharedUserIds);
+
+        customerShareForm.action = `/customers/${customer.id}/share`;
+        shareTitle.textContent = `Chia sẻ: ${customer.name}`;
+        shareCheckboxes.forEach((checkbox) => {
+          checkbox.checked = sharedUserIds.has(Number(checkbox.value));
+        });
       });
     });
   }

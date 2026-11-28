@@ -9,6 +9,7 @@ const { createPagination } = require('../utils/pagination');
 const { isValidDate } = require('./transactions');
 
 const INVENTORY_ROLES = ['admin', 'manager', 'accountant'];
+const INVENTORY_DOCUMENT_ROLES = ['admin', 'manager', 'accountant', 'sale'];
 const MAX_AMOUNT = 9_000_000_000_000;
 const OPTION_TYPES = {
   categories: {
@@ -27,11 +28,13 @@ const createInventoryRouter = (db) => {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    const isSale = req.currentUser.role === 'sale';
     const canManageInventory = INVENTORY_ROLES.some((role) =>
       role === 'admin'
         ? req.currentUser.isAdmin
         : req.currentUser.role === role,
     );
+    const canCreateSale = isSale || canManageInventory;
     const today = new Date().toISOString().slice(0, 10);
     const products = db
       .prepare(
@@ -73,9 +76,13 @@ const createInventoryRouter = (db) => {
         return viewProduct;
       });
 
-    const totalDocumentItems = db
-      .prepare('SELECT COUNT(*) AS count FROM inventory_documents')
-      .get().count;
+    const totalDocumentItems = isSale
+      ? db
+          .prepare(
+            'SELECT COUNT(*) AS count FROM inventory_documents WHERE created_by = ?',
+          )
+          .get(req.currentUser.id).count
+      : db.prepare('SELECT COUNT(*) AS count FROM inventory_documents').get().count;
     const documentsPagination = createPagination({
       page: req.query.tab === 'documents' ? req.query.page : undefined,
       totalItems: totalDocumentItems,
@@ -97,11 +104,14 @@ const createInventoryRouter = (db) => {
          FROM inventory_documents d
          LEFT JOIN inventory_document_items i ON i.document_id = d.id
          LEFT JOIN users u ON u.id = d.created_by
+         ${isSale ? 'WHERE d.created_by = ?' : ''}
          GROUP BY d.id
          ORDER BY d.document_date DESC, d.id DESC
          LIMIT ? OFFSET ?`,
       )
-      .all(documentsPagination.pageSize, documentsPagination.offset)
+      .all(...(isSale
+        ? [req.currentUser.id, documentsPagination.pageSize, documentsPagination.offset]
+        : [documentsPagination.pageSize, documentsPagination.offset]))
       .map((document) => ({
         ...document,
         formattedDate: formatDate(document.document_date),
@@ -113,9 +123,20 @@ const createInventoryRouter = (db) => {
           : null,
       }));
 
-    const customers = canManageInventory
-      ? db.prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE').all()
-      : [];
+    const customers = isSale
+      ? db
+          .prepare(
+            `SELECT c.id, c.name FROM customers c
+             WHERE c.is_public = 1 OR c.owner_id = ? OR EXISTS (
+               SELECT 1 FROM customer_shares cs
+               WHERE cs.customer_id = c.id AND cs.user_id = ?
+             )
+             ORDER BY c.name COLLATE NOCASE`,
+          )
+          .all(req.currentUser.id, req.currentUser.id)
+      : canManageInventory
+        ? db.prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE').all()
+        : [];
     const categories = db
       .prepare(
         `SELECT c.id, c.name, COUNT(p.id) AS product_count
@@ -145,7 +166,7 @@ const createInventoryRouter = (db) => {
         req.query.tab === 'documents' ? 'documents' : 'products',
       documentsPagination,
       showInventoryOptionsModal: req.query.manageOptions === '1',
-      productsForForms: canManageInventory
+      productsForForms: canCreateSale
         ? products
             .filter((product) => product.is_active)
             .map((product) => ({
@@ -154,7 +175,7 @@ const createInventoryRouter = (db) => {
               name: product.name,
               unit: product.unit,
               stockQuantity: product.stock_quantity,
-              costPrice: product.cost_price,
+              ...(canManageInventory ? { costPrice: product.cost_price } : {}),
               salePrice: product.sale_price,
               effectiveSalePrice: product.effectiveSalePrice,
             }))
@@ -164,6 +185,7 @@ const createInventoryRouter = (db) => {
       paymentStatuses: PAYMENT_STATUSES,
       canManageInventory,
       canViewCosts: canManageInventory,
+      canCreateSale,
     });
   });
 
@@ -351,9 +373,32 @@ const createInventoryRouter = (db) => {
 
   router.post(
     '/documents',
-    requireRoles(...INVENTORY_ROLES),
+    requireRoles(...INVENTORY_DOCUMENT_ROLES),
     (req, res) => {
+      if (req.currentUser.role === 'sale' && req.body.type !== 'SALE') {
+        throw createHttpError(403, 'Sale chỉ được lập chứng từ bán hàng.');
+      }
       const document = readDocument(req.body, db);
+      if (req.currentUser.role === 'sale' && document.customerId !== null) {
+        const customer = db
+          .prepare(
+            `SELECT c.* FROM customers c
+             WHERE c.id = ?`,
+          )
+          .get(document.customerId);
+        const accessible =
+          customer &&
+          (customer.is_public === 1 ||
+            customer.owner_id === req.currentUser.id ||
+            db
+              .prepare(
+                'SELECT 1 FROM customer_shares WHERE customer_id = ? AND user_id = ?',
+              )
+              .get(document.customerId, req.currentUser.id));
+        if (!accessible) {
+          throw createHttpError(403, 'Bạn không có quyền bán cho khách hàng này.');
+        }
+      }
       const createDocument = db.transaction(() => {
         validateAvailableStock(db, document);
 

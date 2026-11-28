@@ -25,7 +25,10 @@ const createTransactionsRouter = (db) => {
       req.currentUser.role === 'accountant' ||
       req.currentUser.role === 'manager';
     const filters = readFilters(req.query);
-    const { conditions, parameters } = buildConditions(filters);
+    const { conditions, parameters } = buildConditions(
+      filters,
+      req.currentUser,
+    );
     const totalItems = db
       .prepare(
         `SELECT COUNT(*) AS count FROM transactions t
@@ -89,9 +92,19 @@ const createTransactionsRouter = (db) => {
         };
       });
 
-    const customers = db
-      .prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE')
-      .all();
+    const customers =
+      req.currentUser.role === 'sale'
+        ? db
+            .prepare(
+              `SELECT c.id, c.name FROM customers c
+               WHERE c.is_public = 1 OR c.owner_id = ? OR EXISTS (
+                 SELECT 1 FROM customer_shares cs
+                 WHERE cs.customer_id = c.id AND cs.user_id = ?
+               )
+               ORDER BY c.name COLLATE NOCASE`,
+            )
+            .all(req.currentUser.id, req.currentUser.id)
+        : db.prepare('SELECT id, name FROM customers ORDER BY name COLLATE NOCASE').all();
 
     res.render('transactions', {
       title: 'Thu - Chi',
@@ -121,7 +134,10 @@ const createTransactionsRouter = (db) => {
       req.currentUser.role === 'accountant' ||
       req.currentUser.role === 'manager';
     const filters = readFilters(req.query);
-    const { conditions, parameters } = buildConditions(filters);
+    const { conditions, parameters } = buildConditions(
+      filters,
+      req.currentUser,
+    );
     const transactions = db
       .prepare(
         `SELECT t.id, t.type, t.amount, t.category, t.description,
@@ -181,7 +197,7 @@ const createTransactionsRouter = (db) => {
   });
 
   router.post('/', (req, res) => {
-    const transaction = readTransaction(req.body, db);
+    const transaction = readTransaction(req.body, db, req.currentUser);
 
     db.prepare(
       `INSERT INTO transactions
@@ -223,7 +239,7 @@ const createTransactionsRouter = (db) => {
       throw createHttpError(403, 'Bạn không có quyền chỉnh sửa phiếu này.');
     }
 
-    const transaction = readTransaction(req.body, db);
+    const transaction = readTransaction(req.body, db, req.currentUser);
     const result = db
       .prepare(
         `UPDATE transactions
@@ -402,9 +418,14 @@ const readFilters = (query) => {
   return { approvalStatus, from, paymentStatus, to, type };
 };
 
-const buildConditions = (filters) => {
+const buildConditions = (filters, user) => {
   const conditions = [];
   const parameters = [];
+
+  if (user && user.role === 'sale') {
+    conditions.push('t.created_by = ?');
+    parameters.push(user.id);
+  }
 
   if (filters.type) {
     conditions.push('t.type = ?');
@@ -434,7 +455,7 @@ const buildConditions = (filters) => {
   return { conditions, parameters };
 };
 
-const readTransaction = (body, db) => {
+const readTransaction = (body, db, user) => {
   const type = typeof body.type === 'string' ? body.type : '';
   const amountText = typeof body.amount === 'string' ? body.amount.trim() : '';
   const amount = Number(amountText);
@@ -477,11 +498,31 @@ const readTransaction = (body, db) => {
     throw createHttpError(400, 'Trạng thái thanh toán không hợp lệ.');
   }
 
+  const customer = customerId !== null
+    ? db
+        .prepare(
+          `SELECT c.* FROM customers c
+           WHERE c.id = ?`,
+        )
+        .get(customerId)
+    : null;
+  const customerAccessible =
+    !customer ||
+    user.role !== 'sale' ||
+    customer.is_public === 1 ||
+    customer.owner_id === user.id ||
+    Boolean(
+      db
+        .prepare(
+          'SELECT 1 FROM customer_shares WHERE customer_id = ? AND user_id = ?',
+        )
+        .get(customerId, user.id),
+    );
+
   if (
     customerId !== null &&
-    (!Number.isSafeInteger(customerId) ||
-      customerId < 1 ||
-      !db.prepare('SELECT 1 FROM customers WHERE id = ?').get(customerId))
+    (!Number.isSafeInteger(customerId) || customerId < 1 ||
+      !customer || !customerAccessible)
   ) {
     throw createHttpError(400, 'Khách hàng được chọn không tồn tại.');
   }

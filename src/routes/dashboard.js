@@ -14,6 +14,10 @@ const createDashboardRouter = (db) => {
   const router = express.Router();
 
   router.get('/', (req, res) => {
+    if (req.currentUser.role === 'sale') {
+      res.redirect('/customers');
+      return;
+    }
     const canViewCosts =
       req.currentUser.isAdmin ||
       req.currentUser.role === 'accountant' ||
