@@ -12,6 +12,10 @@ const CUSTOMER_STATUSES = [
   'Đã chốt',
   'Tạm dừng',
 ];
+const TRANSACTION_CATEGORIES_BY_TYPE = {
+  THU: ['Bán hàng', 'Dịch vụ', 'Khác'],
+  CHI: ['Lương thưởng', 'Văn phòng', 'Marketing', 'Khác'],
+};
 const TRANSACTION_CATEGORIES = [
   'Bán hàng',
   'Dịch vụ',
@@ -19,6 +23,7 @@ const TRANSACTION_CATEGORIES = [
   'Văn phòng',
   'Marketing',
   'Khác',
+  'Nhập hàng',
 ];
 const USER_ROLES = ['accountant', 'cashier', 'manager', 'sale'];
 const PRIVILEGED_USER_ROLES = ['admin', 'manager'];
@@ -368,6 +373,7 @@ module.exports = {
   PAYMENT_STATUSES,
   PRIVILEGED_USER_ROLES,
   TRANSACTION_CATEGORIES,
+  TRANSACTION_CATEGORIES_BY_TYPE,
   TRANSACTION_TYPES,
   USER_ROLES,
   createDatabase,

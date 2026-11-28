@@ -3,7 +3,7 @@ const express = require('express');
 const {
   APPROVAL_STATUSES,
   PAYMENT_STATUSES,
-  TRANSACTION_CATEGORIES,
+  TRANSACTION_CATEGORIES_BY_TYPE,
   TRANSACTION_TYPES,
 } = require('../db');
 const { requireRoles } = require('../middleware/auth');
@@ -118,7 +118,7 @@ const createTransactionsRouter = (db) => {
       ).toString()}`,
       transactionTypes: TRANSACTION_TYPES,
       paymentStatuses: PAYMENT_STATUSES,
-      categories: TRANSACTION_CATEGORIES,
+      categoriesByType: TRANSACTION_CATEGORIES_BY_TYPE,
       approvalStatuses: APPROVAL_STATUSES,
       canApproveTransactions: req.currentUser.role === 'manager',
       canMarkTransactionsPaid:
@@ -468,7 +468,8 @@ const readTransaction = (body, db, user) => {
     typeof body.paymentStatus === 'string' ? body.paymentStatus : '';
   const customerIdText =
     typeof body.customerId === 'string' ? body.customerId.trim() : '';
-  const customerId = customerIdText ? Number(customerIdText) : null;
+  const customerId =
+    type === 'CHI' || !customerIdText ? null : Number(customerIdText);
 
   if (!TRANSACTION_TYPES.includes(type)) {
     throw createHttpError(400, 'Loại giao dịch không hợp lệ.');
@@ -482,7 +483,7 @@ const readTransaction = (body, db, user) => {
     throw createHttpError(400, 'Số tiền phải là số nguyên dương hợp lệ.');
   }
 
-  if (!TRANSACTION_CATEGORIES.includes(category)) {
+  if (!TRANSACTION_CATEGORIES_BY_TYPE[type].includes(category)) {
     throw createHttpError(400, 'Danh mục giao dịch không hợp lệ.');
   }
 

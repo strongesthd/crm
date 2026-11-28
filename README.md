@@ -38,6 +38,9 @@ tổng thu chi, công nợ và báo cáo. Người tạo được xem và sửa 
 toán cũng có thể sửa phiếu đang chờ, còn admin có thể sửa mọi phiếu. Mỗi lần
 sửa, phiếu quay lại trạng thái chờ duyệt. Khi nâng cấp cơ sở dữ liệu hiện có,
 các tài khoản cũ được giữ lại và giao dịch cũ được đánh dấu đã duyệt.
+Danh mục trong sổ thu chi thay đổi theo loại phiếu; khách hàng chỉ chọn được
+cho phiếu thu. Phiếu chi danh mục **Nhập hàng** được tạo tự động từ chứng từ
+nhập kho, không phải từ danh mục phiếu chi thủ công.
 
 ## Quản lý kho
 

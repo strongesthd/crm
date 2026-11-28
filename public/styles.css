@@ -169,6 +169,16 @@ body {
   font-family: Inter, sans-serif !important;
 }
 
+.swal2-container .swal2-styled.swal2-confirm {
+  background-color: var(--swal2-confirm-button-background-color) !important;
+  color: var(--swal2-confirm-button-color) !important;
+}
+
+.swal2-container .swal2-styled.swal2-cancel {
+  background-color: var(--swal2-cancel-button-background-color) !important;
+  color: var(--swal2-cancel-button-color) !important;
+}
+
 @media (max-width: 640px) {
   .panel-card {
     padding: 16px;

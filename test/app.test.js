@@ -1298,7 +1298,8 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   const purchaseDocument = db
     .prepare(
       `SELECT d.id, d.approval_status, t.id AS transaction_id,
-        t.type, t.amount, t.approval_status AS transaction_status
+        t.type, t.amount, t.category, t.customer_id,
+        t.approval_status AS transaction_status
        FROM inventory_documents d
        JOIN transactions t ON t.id = d.transaction_id
        WHERE d.document_type = 'PURCHASE'
@@ -1310,6 +1311,8 @@ test('links inventory documents to cashbook and limits cost visibility', async (
   assert.equal(purchaseDocument.approval_status, 'PENDING');
   assert.equal(purchaseDocument.type, 'CHI');
   assert.equal(purchaseDocument.amount, 10000);
+  assert.equal(purchaseDocument.category, 'Nhập hàng');
+  assert.equal(purchaseDocument.customer_id, null);
   assert.equal(purchaseDocument.transaction_status, 'PENDING');
   assert.equal(
     db.prepare('SELECT stock_quantity FROM products WHERE id = ?')
@@ -1966,4 +1969,97 @@ test('limits Sale access to owned, public, and shared customers and hides financ
   });
   assert.equal(dashboardResponse.status, 302);
   assert.equal(dashboardResponse.headers.get('location'), '/customers');
+});
+
+test('uses transaction categories by type and removes customer links from expenses', async (context) => {
+  const temporaryDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'internal-crm-transaction-category-test-'),
+  );
+  const db = createDatabase({
+    adminPass,
+    adminUser,
+    databasePath: temporaryDirectory,
+  });
+  const server = createApp(db).listen(0, '127.0.0.1');
+
+  context.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    db.close();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const adminCookie = await login(baseUrl, adminUser, adminPass);
+  const csrfToken = await getCsrfToken(
+    baseUrl,
+    adminCookie,
+    '/transactions',
+  );
+  const customerId = db
+    .prepare('SELECT id FROM customers ORDER BY id LIMIT 1')
+    .get().id;
+  const transactionDate = new Date().toISOString().slice(0, 10);
+  const invalidExpenseResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    adminCookie,
+    csrfToken,
+    {
+      type: 'CHI',
+      amount: '15000',
+      category: 'Bán hàng',
+      description: 'Chi không được chọn danh mục thu',
+      transactionDate,
+      paymentStatus: 'Đã thanh toán',
+      customerId: String(customerId),
+    },
+  );
+  const createExpenseResponse = await postForm(
+    baseUrl,
+    '/transactions',
+    adminCookie,
+    csrfToken,
+    {
+      type: 'CHI',
+      amount: '25000',
+      category: 'Văn phòng',
+      description: 'Chi văn phòng',
+      transactionDate,
+      paymentStatus: 'Đã thanh toán',
+      customerId: String(customerId),
+    },
+  );
+  const expense = db
+    .prepare(
+      `SELECT type, category, customer_id, approval_status
+       FROM transactions WHERE description = 'Chi văn phòng'`,
+    )
+    .get();
+  const transactionPage = await fetch(`${baseUrl}/transactions`, {
+    headers: { cookie: adminCookie },
+  });
+  const transactionHtml = await transactionPage.text();
+
+  assert.equal(invalidExpenseResponse.status, 400);
+  assert.equal(createExpenseResponse.status, 302);
+  assert.deepEqual(expense, {
+    type: 'CHI',
+    category: 'Văn phòng',
+    customer_id: null,
+    approval_status: 'PENDING',
+  });
+  const categoriesMatch = transactionHtml.match(/data-categories="([^"]*)"/);
+  const categoriesByType = JSON.parse(
+    categoriesMatch[1]
+      .replace(/&#34;/g, '"')
+      .replace(/&amp;/g, '&'),
+  );
+  assert.deepEqual(categoriesByType, {
+    THU: ['Bán hàng', 'Dịch vụ', 'Khác'],
+    CHI: ['Lương thưởng', 'Văn phòng', 'Marketing', 'Khác'],
+  });
 });

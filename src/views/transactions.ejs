@@ -2,7 +2,7 @@
 <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
   <div>
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">Sổ thu chi</h1>
-    <p class="mt-1 text-sm text-slate-500">Theo dõi phiếu thu chi, công nợ và trạng thái duyệt.</p>
+    <p class="mt-1 text-sm text-slate-500">Danh mục tùy theo loại phiếu; chỉ phiếu thu liên kết khách hàng. Nhập kho tự tạo phiếu chi danh mục Nhập hàng.</p>
   </div>
   <div class="flex flex-wrap gap-2">
     <a href="<%= csvUrl %>" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -133,7 +133,7 @@
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div><label for="transaction-category" class="form-label">Danh mục <span class="text-rose-500">*</span></label>
-            <select id="transaction-category" name="category" required class="form-input"><% categories.forEach((category) => { %><option value="<%= category %>"><%= category %></option><% }) %></select>
+            <select id="transaction-category" name="category" required class="form-input" data-categories="<%= JSON.stringify(categoriesByType) %>"><% categoriesByType.THU.forEach((category) => { %><option value="<%= category %>"><%= category %></option><% }) %></select>
           </div>
           <div><label for="transaction-date" class="form-label">Ngày giao dịch <span class="text-rose-500">*</span></label>
             <input id="transaction-date" name="transactionDate" type="date" required class="form-input">
@@ -143,7 +143,7 @@
           <div><label for="transaction-payment-status" class="form-label">Trạng thái thanh toán</label>
             <select id="transaction-payment-status" name="paymentStatus" class="form-input"><% paymentStatuses.forEach((status) => { %><option value="<%= status %>"><%= status %></option><% }) %></select>
           </div>
-          <div><label for="transaction-customer" class="form-label">Khách hàng liên quan</label>
+          <div id="transaction-customer-container"><label for="transaction-customer" class="form-label">Khách hàng liên quan</label>
             <select id="transaction-customer" name="customerId" class="form-input"><option value="">Không liên kết</option><% customers.forEach((customer) => { %><option value="<%= customer.id %>"><%= customer.name %></option><% }) %></select>
           </div>
         </div>

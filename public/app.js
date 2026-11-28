@@ -185,15 +185,40 @@
       'transaction-payment-status',
     );
     const customerInput = document.getElementById('transaction-customer');
+    const customerContainer = document.getElementById(
+      'transaction-customer-container',
+    );
     const descriptionInput = document.getElementById(
       'transaction-description',
     );
     const submitLabel = document.getElementById('transaction-submit-label');
+    const categoriesByType = JSON.parse(categoryInput.dataset.categories);
+
+    const updateTransactionType = (selectedCategory = categoryInput.value) => {
+      const categories = categoriesByType[typeInput.value] || [];
+
+      categoryInput.replaceChildren(
+        ...categories.map((category) => new Option(category, category)),
+      );
+      categoryInput.value = categories.includes(selectedCategory)
+        ? selectedCategory
+        : categories[0] || '';
+
+      const isExpense = typeInput.value === 'CHI';
+      customerContainer.classList.toggle('hidden', isExpense);
+      customerInput.disabled = isExpense;
+      if (isExpense) {
+        customerInput.value = '';
+      }
+    };
+
+    typeInput.addEventListener('change', () => updateTransactionType());
 
     document.querySelectorAll('[data-transaction-create]').forEach((button) => {
       button.addEventListener('click', () => {
         transactionForm.action = '/transactions';
         transactionForm.reset();
+        updateTransactionType(categoriesByType.THU[0]);
         modalTitle.textContent = 'Thêm giao dịch';
         submitLabel.textContent = 'Tạo phiếu';
         dateInput.value = new Date().toISOString().slice(0, 10);
@@ -206,11 +231,12 @@
 
         transactionForm.action = `/transactions/${transaction.id}`;
         typeInput.value = transaction.type;
+        updateTransactionType(transaction.category);
         amountInput.value = transaction.amount;
-        categoryInput.value = transaction.category;
         dateInput.value = transaction.transactionDate;
         paymentStatusInput.value = transaction.paymentStatus;
-        customerInput.value = transaction.customerId ?? '';
+        customerInput.value =
+          transaction.type === 'THU' ? transaction.customerId ?? '' : '';
         descriptionInput.value = transaction.description;
         modalTitle.textContent = `Sửa phiếu #${transaction.id}`;
         submitLabel.textContent = 'Lưu thay đổi';
